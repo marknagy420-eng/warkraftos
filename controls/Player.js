@@ -30,13 +30,13 @@ export class Player {
         this.currentAnimName = null;
 
         this.animationAliases = {
-            idle: ['idle', 'wait', 'standing', 'stay'],
+            idle: ['NlaTrack.002', 'nlatrack.002', 'idle', 'wait', 'standing', 'stay'],
             look_around: ['look_around', 'lookaround', 'look'],
-            walk: ['walk', 'moving', 'step'],
-            run: ['run', 'sprint', 'fast_run', 'jog'],
+            walk: ['NlaTrack.005', 'nlatrack.005', 'walk', 'moving', 'step'],
+            run: ['NlaTrack.003', 'nlatrack.003', 'run', 'sprint', 'fast_run', 'jog'],
             jump: ['jump', 'leap', 'falling'],
             land: ['land', 'ground', 'recover'],
-            attack: ['box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
+            attack: ['NlaTrack', 'nlatrack', 'box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
         };
 
         // Container mesh
@@ -139,8 +139,10 @@ export class Player {
         });
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
-            distance: 6.5,
-            height: 2.8
+            distance: 7.5,
+            height: 3.2,
+            fixedBehind: true,
+            pitch: 0.15
         });
 
         this.setupInput();
@@ -282,8 +284,11 @@ export class Player {
             this.idleTimer = 0;
             this.nextIdleVariationTime = this._randomIdleDelay();
 
-            // Threshold: above base speed * 1.1 triggers run
-            if (speed > CONFIG.PLAYER.MOVE_SPEED * 1.1) {
+            const isForwardPressed = Boolean(this.controller.keys?.KeyW);
+            const isShiftPressed = Boolean(this.controller.keys?.ShiftLeft || this.controller.keys?.ShiftRight);
+            const shouldPlayRun = isForwardPressed && isShiftPressed && speed > CONFIG.PLAYER.MOVE_SPEED * 1.1;
+
+            if (shouldPlayRun) {
                 this.playAnimation('run', 0.3);
             } else {
                 this.playAnimation('walk', 0.3);
