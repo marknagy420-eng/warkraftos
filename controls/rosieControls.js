@@ -1,3 +1,4 @@
+// Kanonikus vezérlő-stack implementáció: ezt használja a játék runtime.
 import * as THREE from 'three';
 import { MobileControls } from './rosieMobileControls.js';
 
