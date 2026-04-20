@@ -9,12 +9,13 @@ export class DeerNPC {
         this.mesh.position.copy(position);
         this.scene.add(this.mesh);
 
-        this.speed = 1.7 + Math.random() * 0.8;
+        this.speed = 0.9 + Math.random() * 0.35;
         this.homePosition = position.clone();
         this.wanderRadius = 12 + Math.random() * 18;
         this.pauseTimer = 0;
         this.target = null;
         this.modelFacingOffset = Math.PI / 2;
+        this.turnSpeed = 1.25 + Math.random() * 0.45;
 
         this.model = cloneSkeleton(deerGltf.scene);
         this.model.updateMatrixWorld(true);
@@ -86,16 +87,22 @@ export class DeerNPC {
             return;
         }
 
-        toTarget.normalize();
-        this.mesh.position.x += toTarget.x * this.speed * deltaTime;
-        this.mesh.position.z += toTarget.z * this.speed * deltaTime;
-        this.mesh.position.y = this.world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
-
         const targetRotation = Math.atan2(toTarget.x, toTarget.z) + this.modelFacingOffset;
         let diff = targetRotation - this.mesh.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        this.mesh.rotation.y += diff * Math.min(10 * deltaTime, 1);
+
+        const maxTurn = this.turnSpeed * deltaTime;
+        const clampedTurn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+        this.mesh.rotation.y += clampedTurn;
+
+        // Move only forward along deer facing direction (no side stepping).
+        const facingAngle = this.mesh.rotation.y - this.modelFacingOffset;
+        const forward = new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle));
+        const forwardAmount = this.speed * deltaTime;
+        this.mesh.position.x += forward.x * forwardAmount;
+        this.mesh.position.z += forward.z * forwardAmount;
+        this.mesh.position.y = this.world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
 
         this.setMovingAnimation(true);
         if (this.mixer) this.mixer.update(deltaTime);

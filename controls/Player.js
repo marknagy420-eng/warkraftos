@@ -19,6 +19,10 @@ export class Player {
         this.isRunning = false;
         this.isLanding = false;
         this.wasOnGround = true;
+        this.inventoryVisible = false;
+        this.weaponEquipped = false;
+        this.sword = null;
+        this.swordHand = null;
 
         // Idle variation system
         this.idleTimer = 0;
@@ -32,13 +36,7 @@ export class Player {
 
         // Egységes, kanonikus animáció mapping (root/controls között ne legyen eltérés).
         this.animationClipMap = {
-            idle: { name: 'NlaTrack.002', index: 2, required: true },
-            walk: { name: 'NlaTrack.005', index: 5, required: true },
-            run: { name: 'NlaTrack.003', index: 3, required: true },
-            attack: { name: 'NlaTrack', index: 0, required: true },
-            jump: { name: 'NlaTrack.004', index: 4, required: false },
-            land: { name: 'NlaTrack.001', index: 1, required: false },
-            look_around: { name: 'NlaTrack.006', index: 6, required: false }
+            walk: { name: 'NlaTrack.005', index: 5, required: true }
         };
 
         // Container mesh
@@ -53,11 +51,11 @@ export class Player {
         ]).then(([characterGltf, animationGltf]) => {
             this.model = cloneSkeleton(characterGltf.scene);
 
-            // Auto-scale to ~2 units height
+            // Auto-scale to a larger player silhouette
             this.model.updateMatrixWorld(true);
             const box = new THREE.Box3().setFromObject(this.model);
             const size = box.getSize(new THREE.Vector3());
-            const s = 2 / size.y;
+            const s = 3.1 / size.y;
             this.model.scale.set(s, s, s);
 
             // Center and ground
@@ -104,59 +102,21 @@ export class Player {
                     return null;
                 };
 
-                let idleClip = resolveClip('idle');
-                if (!idleClip) {
-                    idleClip = clips[0] || null;
-                    if (idleClip) {
-                        console.warn(
-                            `[Player] idle clip hiányzik (${this.animationClipMap.idle.name}), ` +
-                            `biztonsági fallback az első clipre: ${idleClip.name}`
-                        );
-                    }
-                }
-
                 for (const state of Object.keys(this.animationClipMap)) {
                     const map = this.animationClipMap[state];
                     let clip = resolveClip(state);
 
-                    if (!clip && idleClip) {
-                        console.warn(
-                            `[Player] ${state} clip hiányzik (name=${map.name}, index=${map.index}), idle fallback: ${idleClip.name}`
-                        );
-                        clip = idleClip;
-                    }
-
                     if (!clip) continue;
 
                     const action = this.mixer.clipAction(clip);
-                    if (['jump', 'land', 'attack', 'look_around'].includes(state)) {
-                        action.setLoop(THREE.LoopOnce, 1);
-                        action.clampWhenFinished = true;
-                    }
                     this.actions[state] = action;
                     console.log(`  -> Mapped [${state}]: "${clip.name}"`);
                 }
-
-                if (!this.actions.idle && idleClip) {
-                    this.actions.idle = this.mixer.clipAction(idleClip);
-                    console.warn(`[Player] idle action biztonsági fallback: ${idleClip.name}`);
-                }
-
-                // Listen for animation finish events (for look_around return-to-idle)
-                this.mixer.addEventListener('finished', (e) => {
-                    if (this.isPlayingIdleVariation && this.actions.look_around &&
-                        e.action === this.actions.look_around) {
-                        this.isPlayingIdleVariation = false;
-                        this.idleTimer = 0;
-                        this.nextIdleVariationTime = this._randomIdleDelay();
-                        this.playAnimation('idle', 0.4);
-                    }
-                });
-
-                this.playAnimation('idle');
             } else {
                 console.warn('No animations found in player GLB!');
             }
+
+            this.loadSwordModel(loader);
         }).catch((error) => {
             console.error('Player model loading failed:', error);
         });
@@ -189,22 +149,27 @@ export class Player {
 
     setupInput() {
         window.addEventListener('keydown', (e) => {
-            if (e.code === 'KeyW' && !e.repeat) this.attack();
             if (e.code === 'Space') this.jump();
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.setRunning(true);
+            if (e.code === 'Digit1' && !e.repeat) this.toggleWeapon();
+            if (e.code === 'KeyI' && !e.repeat) this.toggleInventory();
         });
 
         window.addEventListener('keyup', (e) => {
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.setRunning(false);
+        });
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && this.weaponEquipped) {
+                this.attack();
+            }
         });
     }
 
     setRunning(running) {
         this.isRunning = running;
         if (this.controller) {
-            this.controller.moveSpeed = running
-                ? CONFIG.PLAYER.MOVE_SPEED * 1.8
-                : CONFIG.PLAYER.MOVE_SPEED;
+            this.controller.moveSpeed = CONFIG.PLAYER.MOVE_SPEED;
         }
     }
 
@@ -228,8 +193,6 @@ export class Player {
     jump() {
         if (this.controller && this.controller.isOnGround) {
             this.controller.velocity.y = CONFIG.PLAYER.JUMP_FORCE;
-            this.isPlayingIdleVariation = false;
-            this.playAnimation('jump', 0.15);
         }
     }
 
@@ -241,15 +204,9 @@ export class Player {
         this.lastAttackTime = now;
         this.isPlayingIdleVariation = false;
 
-        if (this.actions.attack) {
-            this.playAnimation('attack', 0.1);
-            setTimeout(() => {
-                this.isAttacking = false;
-                this.updateMovementAnimation();
-            }, 600);
-        } else {
+        setTimeout(() => {
             this.isAttacking = false;
-        }
+        }, 250);
 
         window.dispatchEvent(new CustomEvent('player-attack', { detail: { player: this } }));
     }
@@ -267,98 +224,28 @@ export class Player {
     }
 
     updateMovementAnimation() {
-        if (this.isAttacking || !this.mixer) {
-            if (this.controller) this.wasOnGround = this.controller.isOnGround;
-            return;
-        }
+        if (!this.mixer) return;
 
-        const isOnGround = this.controller.isOnGround;
-        const justLanded = !this.wasOnGround && isOnGround;
-        this.wasOnGround = isOnGround;
+        const hasMoveInput = Boolean(
+            this.controller?.keys?.KeyW ||
+            this.controller?.keys?.KeyA ||
+            this.controller?.keys?.KeyS ||
+            this.controller?.keys?.KeyD
+        );
 
-        const hVel = new THREE.Vector3(this.controller.velocity.x, 0, this.controller.velocity.z);
-        const speed = hVel.length();
-        const isMoving = speed > 0.5;
+        const isOnGround = this.controller?.isOnGround;
 
-        // --- Landing ---
-        if (justLanded) {
-            this.isPlayingIdleVariation = false;
-            if (this.actions.land && speed < 1.0) {
-                this.isLanding = true;
-                this.playAnimation('land', 0.1);
-                setTimeout(() => {
-                    this.isLanding = false;
-                    this.updateMovementAnimation();
-                }, 400);
-            }
-        }
-
-        // If locked in landing, only break out if moving
-        if (this.isLanding) {
-            if (speed >= 1.0) {
-                this.isLanding = false;
-            } else {
-                return;
-            }
-        }
-
-        // --- Airborne ---
-        if (!isOnGround) {
-            this.isPlayingIdleVariation = false;
-            this.idleTimer = 0;
-            this.playAnimation('jump', 0.2);
-            return;
-        }
-
-        // --- Moving: walk / run blend by speed ---
-        if (isMoving) {
-            this.isPlayingIdleVariation = false;
-            this.idleTimer = 0;
-            this.nextIdleVariationTime = this._randomIdleDelay();
-
-            const isForwardPressed = Boolean(this.controller.keys?.KeyW);
-            const shouldPlayRun = isForwardPressed && this.isRunning && speed > CONFIG.PLAYER.MOVE_SPEED * 1.1;
-
-            if (shouldPlayRun) {
-                this.playAnimation('run', 0.3);
-            } else {
-                this.playAnimation('walk', 0.3);
-            }
-            return;
-        }
-
-        // --- Idle: "wait" with random "look_around" variation ---
-        if (!this.isPlayingIdleVariation) {
-            this.playAnimation('idle', justLanded ? 0.5 : 0.3);
+        if (hasMoveInput && isOnGround) {
+            this.playAnimation('walk', 0.15);
+        } else if (this.currentAction) {
+            this.currentAction.fadeOut(0.15);
+            this.currentAction = null;
+            this.currentAnimName = null;
         }
     }
 
     updateIdleVariation(deltaTime) {
-        if (!this.mixer) return;
-        if (this.isAttacking || this.isLanding) return;
-
-        const hVel = new THREE.Vector3(this.controller.velocity.x, 0, this.controller.velocity.z);
-        const isMoving = hVel.length() > 0.5;
-        const isOnGround = this.controller.isOnGround;
-
-        // Only count idle time when standing still on the ground
-        if (!isMoving && isOnGround && !this.isPlayingIdleVariation) {
-            this.idleTimer += deltaTime;
-
-            if (this.idleTimer >= this.nextIdleVariationTime && this.actions.look_around) {
-                this.isPlayingIdleVariation = true;
-                this.idleTimer = 0;
-                this.playAnimation('look_around', 0.5);
-                // The 'finished' event on the mixer handles returning to idle
-            }
-        } else if (isMoving || !isOnGround) {
-            // Reset if player starts moving
-            this.idleTimer = 0;
-            this.nextIdleVariationTime = this._randomIdleDelay();
-            if (this.isPlayingIdleVariation) {
-                this.isPlayingIdleVariation = false;
-            }
-        }
+        // Intentionally disabled: user requested only one movement animation.
     }
 
     update(deltaTime, world) {
@@ -380,5 +267,49 @@ export class Player {
 
         this.updateMovementAnimation();
         this.updateIdleVariation(deltaTime);
+    }
+
+    toggleInventory() {
+        this.inventoryVisible = !this.inventoryVisible;
+        window.dispatchEvent(new CustomEvent('inventory-toggle', { detail: { visible: this.inventoryVisible } }));
+    }
+
+    toggleWeapon() {
+        this.weaponEquipped = !this.weaponEquipped;
+        if (this.sword) {
+            this.sword.visible = this.weaponEquipped;
+        }
+        window.dispatchEvent(new CustomEvent('weapon-changed', { detail: { equipped: this.weaponEquipped } }));
+    }
+
+    loadSwordModel(loader) {
+        loader.load(
+            'assets/金色长剑3d模型.glb',
+            (gltf) => {
+                this.sword = cloneSkeleton(gltf.scene);
+                this.sword.scale.set(0.5, 0.5, 0.5);
+                this.sword.rotation.set(0, 0, Math.PI / 2);
+                this.sword.position.set(0.06, 0.02, 0.02);
+                this.sword.visible = false;
+
+                this.swordHand = null;
+                this.model.traverse((child) => {
+                    if (!this.swordHand && child.isBone && /hand|wrist|arm/i.test(child.name)) {
+                        this.swordHand = child;
+                    }
+                });
+
+                if (this.swordHand) {
+                    this.swordHand.add(this.sword);
+                } else {
+                    this.model.add(this.sword);
+                    this.sword.position.set(0.22, 1.1, 0.15);
+                }
+            },
+            undefined,
+            () => {
+                console.warn('Sword model could not be loaded: assets/金色长剑3d模型.glb');
+            }
+        );
     }
 }
