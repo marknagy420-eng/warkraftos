@@ -132,7 +132,7 @@ export class World {
 
     setupGround() {
         const textureLoader = new THREE.TextureLoader();
-        const groundTexture = textureLoader.load('assets/forest_ground_texture.webp');
+        const groundTexture = textureLoader.load('assets/fold.jpg');
         groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
         groundTexture.repeat.set(100, 100);
 
