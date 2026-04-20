@@ -172,8 +172,11 @@ export class Player {
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
             distance: 7.5,
             height: 3.2,
-            fixedBehind: true,
-            pitch: 0.15
+            rotationSpeed: 0.0032,
+            pitchSpeed: 0.0024,
+            autoRotationSpeed: 5.0,
+            fixedBehind: false,
+            pitch: 0.2
         });
 
         this.setupInput();

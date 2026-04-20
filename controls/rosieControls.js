@@ -30,12 +30,20 @@ class PlayerController {
   }
 
   setupInput() {
-    document.addEventListener('keydown', (e) => {
+    window.addEventListener('keydown', (e) => {
+      const target = e.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
       this.keys[e.code] = true;
     });
 
-    document.addEventListener('keyup', (e) => {
+    window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
+    });
+
+    window.addEventListener('blur', () => {
+      this.keys = {};
     });
   }
 
@@ -54,8 +62,8 @@ class PlayerController {
 
     // Mobile support
     if (this.mobileControls && this.mobileControls.joystickActive) {
-        moveX = this.mobileControls.joystickVector.x;
-        moveZ = -this.mobileControls.joystickVector.y;
+        moveX += this.mobileControls.joystickVector.x;
+        moveZ += -this.mobileControls.joystickVector.y;
     }
 
     const direction = new THREE.Vector3(moveX, 0, moveZ);
@@ -79,11 +87,12 @@ class PlayerController {
    * @param {number} cameraRotation The current horizontal rotation (yaw) of the active camera.
    */
   update(deltaTime, cameraRotation) {
+    const dt = Math.max(deltaTime || 0, 1 / 240);
     // Apply gravity
     // Check if the player's base (center y - half height approx) is above ground
     // Note: Player model base is roughly at world y = player.position.y
     if (this.player.position.y > this.groundLevel) {
-      this.velocity.y -= this.gravity * deltaTime;
+      this.velocity.y -= this.gravity * dt;
       this.isOnGround = false;
     } else {
       // Clamp player to ground level and reset vertical velocity
@@ -128,14 +137,14 @@ class PlayerController {
 
     // Apply acceleration for smooth speed transitions (helps animation blending)
     const accel = this.isOnGround ? 12 : 6;
-    this.velocity.x += (targetVelocityX - this.velocity.x) * accel * deltaTime;
-    this.velocity.z += (targetVelocityZ - this.velocity.z) * accel * deltaTime;
+    this.velocity.x += (targetVelocityX - this.velocity.x) * accel * dt;
+    this.velocity.z += (targetVelocityZ - this.velocity.z) * accel * dt;
 
 
     // --- Update Player Position ---
-    this.player.position.x += this.velocity.x * deltaTime;
-    this.player.position.y += this.velocity.y * deltaTime;
-    this.player.position.z += this.velocity.z * deltaTime;
+    this.player.position.x += this.velocity.x * dt;
+    this.player.position.y += this.velocity.y * dt;
+    this.player.position.z += this.velocity.z * dt;
 
 
     // --- Update Player Rotation ---
@@ -150,7 +159,7 @@ class PlayerController {
         while (diff > Math.PI) diff -= Math.PI * 2;
         
         // Smoothly rotate character to face movement direction
-        this.player.rotation.y += diff * 15 * deltaTime;
+        this.player.rotation.y += diff * 15 * dt;
       }
     }
   }
