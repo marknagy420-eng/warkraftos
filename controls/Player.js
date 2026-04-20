@@ -188,11 +188,8 @@ export class Player {
     }
 
     setupInput() {
-        window.addEventListener('mousedown', (e) => {
-            if (e.button === 0) this.attack();
-        });
-
         window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW' && !e.repeat) this.attack();
             if (e.code === 'Space') this.jump();
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.setRunning(true);
         });
