@@ -36,7 +36,9 @@ export class Player {
 
         // Egységes, kanonikus animáció mapping (root/controls között ne legyen eltérés).
         this.animationClipMap = {
-            walk: { name: 'NlaTrack.005', index: 5, required: true }
+            idle: { name: 'NlaTrack.003', index: 3, keywords: ['idle', 'breath', 'stand'] },
+            walk: { name: 'NlaTrack.005', index: 5, keywords: ['walk', 'move', 'locomotion'], required: true },
+            run: { name: 'NlaTrack.006', index: 6, keywords: ['run', 'sprint', 'jog'] }
         };
 
         // Container mesh
@@ -97,6 +99,14 @@ export class Player {
                             `${map.index} -> ${byIndex.name}`
                         );
                         return byIndex;
+                    }
+
+                    if (Array.isArray(map.keywords) && map.keywords.length > 0) {
+                        const byKeyword = clips.find((c) => {
+                            const lowerName = c.name.toLowerCase();
+                            return map.keywords.some((keyword) => lowerName.includes(keyword));
+                        });
+                        if (byKeyword) return byKeyword;
                     }
 
                     return null;
@@ -236,7 +246,13 @@ export class Player {
         const isOnGround = this.controller?.isOnGround;
 
         if (hasMoveInput && isOnGround) {
-            this.playAnimation('walk', 0.15);
+            if (this.isRunning && this.actions.run) {
+                this.playAnimation('run', 0.15);
+            } else {
+                this.playAnimation('walk', 0.15);
+            }
+        } else if (isOnGround && this.actions.idle) {
+            this.playAnimation('idle', 0.2);
         } else if (this.currentAction) {
             this.currentAction.fadeOut(0.15);
             this.currentAction = null;
@@ -245,7 +261,15 @@ export class Player {
     }
 
     updateIdleVariation(deltaTime) {
-        // Intentionally disabled: user requested only one movement animation.
+        if (!this.actions.idle || this.currentAnimName !== 'idle') return;
+
+        this.idleTimer += deltaTime;
+        if (this.idleTimer < this.nextIdleVariationTime) return;
+
+        this.idleTimer = 0;
+        this.nextIdleVariationTime = this._randomIdleDelay();
+        const idleAction = this.actions.idle;
+        idleAction.timeScale = 0.95 + Math.random() * 0.15;
     }
 
     update(deltaTime, world) {

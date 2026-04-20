@@ -133,13 +133,17 @@ export class World {
         const directional = new THREE.DirectionalLight(0xffffff, 1.2);
         directional.position.set(100, 200, 100);
         directional.castShadow = true;
-        // Optimized shadow settings for performance
-        directional.shadow.mapSize.width = 1024; // Half resolution
-        directional.shadow.mapSize.height = 1024;
+        directional.shadow.mapSize.width = 2048;
+        directional.shadow.mapSize.height = 2048;
         directional.shadow.camera.left = -300;
         directional.shadow.camera.right = 300;
         directional.shadow.camera.top = 300;
         directional.shadow.camera.bottom = -300;
+        directional.shadow.camera.near = 1;
+        directional.shadow.camera.far = 700;
+        directional.shadow.bias = -0.00015;
+        directional.shadow.normalBias = 0.02;
+        directional.shadow.radius = 2;
         this.scene.add(directional);
 
         // Fog for atmosphere and performance (draw distance feel)

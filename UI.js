@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { QUESTS } from './quests.js';
 
 export class UI {
     constructor() {
@@ -43,7 +44,10 @@ export class UI {
         questLog.style.pointerEvents = 'none';
         questLog.innerHTML = `
             <div style="font-size: 16px; font-weight: bold; border-bottom: 1px solid #777; margin-bottom: 10px;">QUEST LOG</div>
-            <div id="quest-text">Clear the Forest: <span id="kill-count">0</span>/5 Goblins</div>
+            <div id="quest-title" style="font-size: 14px; margin-bottom: 6px;"></div>
+            <div id="quest-state" style="font-size: 12px; opacity: 0.85; margin-bottom: 8px;"></div>
+            <ul id="quest-objectives" style="margin: 0; padding-left: 18px; font-size: 12px;"></ul>
+            <div id="quest-text" style="margin-top: 8px;">Clear the Forest: <span id="kill-count">0</span>/5 Goblins</div>
         `;
         document.body.appendChild(questLog);
 
@@ -83,12 +87,18 @@ export class UI {
         this.hpBar = hud.querySelector('#hp-bar');
         this.xpBar = hud.querySelector('#xp-bar');
         this.killCountSpan = questLog.querySelector('#kill-count');
+        this.questTitle = questLog.querySelector('#quest-title');
+        this.questState = questLog.querySelector('#quest-state');
+        this.questObjectives = questLog.querySelector('#quest-objectives');
         this.goldDisplay = hud.querySelector('#gold-display');
         this.weaponSlot = inventory.querySelector('#weapon-slot');
         this.inventoryPanel = inventory;
         
         this.gold = 0;
         this.kills = 0;
+        this.activeQuest = QUESTS.Q001_ShadowAwakening;
+        this.activeQuestStateId = 'START';
+        this.renderQuestState();
     }
 
     setupListeners() {
@@ -129,6 +139,19 @@ export class UI {
     addGold(amount) {
         this.gold += amount;
         this.goldDisplay.textContent = `Gold: ${this.gold}g`;
+    }
+
+    renderQuestState() {
+        if (!this.activeQuest) return;
+        const state = this.activeQuest.states.find((s) => s.id === this.activeQuestStateId) || this.activeQuest.states[0];
+        this.questTitle.textContent = this.activeQuest.title;
+        this.questState.textContent = `State: ${state.id}`;
+        this.questObjectives.innerHTML = '';
+        (state.objectives || []).forEach((objective) => {
+            const li = document.createElement('li');
+            li.textContent = objective;
+            this.questObjectives.appendChild(li);
+        });
     }
 
     showMessage(text) {
