@@ -175,10 +175,11 @@ class ThirdPersonCameraController {
     this.rotationSpeed = options.rotationSpeed || 0.003;
     this.pitchSpeed = options.pitchSpeed || 0.003;
     this.autoRotationSpeed = options.autoRotationSpeed || 4.0; // Faster camera following player rotation
+    this.fixedBehind = options.fixedBehind ?? false;
 
     // State
     this.rotation = 0; // Yaw (0 = behind player facing -Z)
-    this.pitch = 0.2; // Pitch (radians)
+    this.pitch = options.pitch ?? 0.2; // Pitch (radians)
     this.isDragging = false;
     this.mousePosition = { x: 0, y: 0 };
     this.enabled = true;
@@ -188,6 +189,10 @@ class ThirdPersonCameraController {
   }
 
   setupControls() {
+    if (this.fixedBehind) {
+      return;
+    }
+
     // Pointer lock for immersive 3rd person
     this.domElement.addEventListener('mousedown', (e) => {
       if (!this.enabled) return;
@@ -252,9 +257,11 @@ class ThirdPersonCameraController {
   update(deltaTime = 0.016, playerYaw = null) {
     if (!this.enabled) return 0;
 
-    // Keep camera naturally behind the character unless the user is actively rotating camera.
-    if (typeof playerYaw === 'number' &&
+    if (this.fixedBehind && typeof playerYaw === 'number') {
+      this.rotation = playerYaw + Math.PI;
+    } else if (typeof playerYaw === 'number' &&
         document.pointerLockElement !== this.domElement && !this.isDragging) {
+      // Keep camera naturally behind the character unless the user is actively rotating camera.
       const desiredBehind = playerYaw + Math.PI;
       let diff = desiredBehind - this.rotation;
       while (diff < -Math.PI) diff += Math.PI * 2;
