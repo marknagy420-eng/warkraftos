@@ -30,14 +30,15 @@ export class Player {
         this.currentAction = null;
         this.currentAnimName = null;
 
-        this.animationAliases = {
-            idle: ['NlaTrack.002', 'nlatrack.002', 'idle', 'wait', 'standing', 'stay'],
-            look_around: ['look_around', 'lookaround', 'look'],
-            walk: ['NlaTrack.005', 'nlatrack.005', 'walk', 'moving', 'step'],
-            run: ['NlaTrack.003', 'nlatrack.003', 'run', 'sprint', 'fast_run', 'jog'],
-            jump: ['jump', 'leap', 'falling'],
-            land: ['land', 'ground', 'recover'],
-            attack: ['NlaTrack', 'nlatrack', 'box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
+        // Egységes, kanonikus animáció mapping (root/controls között ne legyen eltérés).
+        this.animationClipMap = {
+            idle: { name: 'NlaTrack.002', index: 2, required: true },
+            walk: { name: 'NlaTrack.005', index: 5, required: true },
+            run: { name: 'NlaTrack.003', index: 3, required: true },
+            attack: { name: 'NlaTrack', index: 0, required: true },
+            jump: { name: 'NlaTrack.004', index: 4, required: false },
+            land: { name: 'NlaTrack.001', index: 1, required: false },
+            look_around: { name: 'NlaTrack.006', index: 6, required: false }
         };
 
         // Container mesh
@@ -81,21 +82,50 @@ export class Player {
 
             if (clips.length > 0) {
                 this.mixer = new THREE.AnimationMixer(this.model);
-                console.log('Player GLB clips:', clips.map(c => c.name));
+                const clipNames = clips.map((c) => c.name);
+                console.log('Player GLB clips:', clipNames);
 
-                const findClipByTags = (tags) => {
-                    for (const tag of tags) {
-                        const lowerTag = tag.toLowerCase();
-                        const exact = clips.find(c => c.name.toLowerCase() === lowerTag);
-                        if (exact) return exact;
-                        const partial = clips.find(c => c.name.toLowerCase().includes(lowerTag));
-                        if (partial) return partial;
+                const resolveClip = (state) => {
+                    const map = this.animationClipMap[state];
+                    if (!map) return null;
+
+                    const byExactName = clips.find((c) => c.name === map.name);
+                    if (byExactName) return byExactName;
+
+                    if (Number.isInteger(map.index) && clips[map.index]) {
+                        const byIndex = clips[map.index];
+                        console.warn(
+                            `[Player] ${state} exact név (${map.name}) nem található, index fallback: ` +
+                            `${map.index} -> ${byIndex.name}`
+                        );
+                        return byIndex;
                     }
+
                     return null;
                 };
 
-                for (const [state, tags] of Object.entries(this.animationAliases)) {
-                    const clip = findClipByTags(tags);
+                let idleClip = resolveClip('idle');
+                if (!idleClip) {
+                    idleClip = clips[0] || null;
+                    if (idleClip) {
+                        console.warn(
+                            `[Player] idle clip hiányzik (${this.animationClipMap.idle.name}), ` +
+                            `biztonsági fallback az első clipre: ${idleClip.name}`
+                        );
+                    }
+                }
+
+                for (const state of Object.keys(this.animationClipMap)) {
+                    const map = this.animationClipMap[state];
+                    let clip = resolveClip(state);
+
+                    if (!clip && idleClip) {
+                        console.warn(
+                            `[Player] ${state} clip hiányzik (name=${map.name}, index=${map.index}), idle fallback: ${idleClip.name}`
+                        );
+                        clip = idleClip;
+                    }
+
                     if (!clip) continue;
 
                     const action = this.mixer.clipAction(clip);
@@ -107,9 +137,9 @@ export class Player {
                     console.log(`  -> Mapped [${state}]: "${clip.name}"`);
                 }
 
-                if (!this.actions.idle && clips.length > 0) {
-                    this.actions.idle = this.mixer.clipAction(clips[0]);
-                    console.log('  -> Fallback idle:', clips[0].name);
+                if (!this.actions.idle && idleClip) {
+                    this.actions.idle = this.mixer.clipAction(idleClip);
+                    console.warn(`[Player] idle action biztonsági fallback: ${idleClip.name}`);
                 }
 
                 // Listen for animation finish events (for look_around return-to-idle)
