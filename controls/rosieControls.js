@@ -21,6 +21,7 @@ class PlayerController {
     this.canJump = true;
     this.keys = {};
     this.cameraMode = 'third-person'; // Default camera mode
+    this.modelFacingOffset = options.modelFacingOffset ?? Math.PI / 2;
 
     // Setup input handlers
     this.setupInput();
@@ -152,7 +153,7 @@ class PlayerController {
     if (this.cameraMode === 'third-person') {
       const horizontalVelocity = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
       if (horizontalVelocity.lengthSq() > 0.1) {
-        const targetRotation = Math.atan2(horizontalVelocity.x, horizontalVelocity.z);
+        const targetRotation = Math.atan2(horizontalVelocity.x, horizontalVelocity.z) + this.modelFacingOffset;
         
         let diff = targetRotation - this.player.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
