@@ -19,7 +19,8 @@ class Game {
         this.renderer.shadowMap.type = THREE.BasicShadowMap; // Faster shadow maps
         document.body.appendChild(this.renderer.domElement);
 
-        this.clock = new THREE.Timer();
+        // THREE.Clock gives reliable per-frame delta for gameplay movement.
+        this.clock = new THREE.Clock();
         
         // Initialize Components
         this.ui = new UI();
@@ -98,7 +99,7 @@ class Game {
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Cap deltaTime
+        const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1); // keep movement responsive
         
         this.player.update(deltaTime, this.world);
         this.world.update(deltaTime, this.player);
