@@ -166,12 +166,13 @@ export class Player {
             moveSpeed: CONFIG.PLAYER.MOVE_SPEED,
             jumpForce: CONFIG.PLAYER.JUMP_FORCE,
             gravity: CONFIG.PLAYER.GRAVITY,
-            groundLevel: 0
+            groundLevel: 0,
+            modelFacingOffset: Math.PI / 2
         });
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
-            distance: 7.5,
-            height: 3.2,
+            distance: 5.2,
+            height: 2.6,
             rotationSpeed: 0.0032,
             pitchSpeed: 0.0024,
             autoRotationSpeed: 5.0,
@@ -193,11 +194,11 @@ export class Player {
 
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') this.jump();
-            if (e.shiftKey) this.setRunning(true);
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.setRunning(true);
         });
 
         window.addEventListener('keyup', (e) => {
-            if (!e.shiftKey) this.setRunning(false);
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.setRunning(false);
         });
     }
 
@@ -319,8 +320,7 @@ export class Player {
             this.nextIdleVariationTime = this._randomIdleDelay();
 
             const isForwardPressed = Boolean(this.controller.keys?.KeyW);
-            const isShiftPressed = Boolean(this.controller.keys?.ShiftLeft || this.controller.keys?.ShiftRight);
-            const shouldPlayRun = isForwardPressed && isShiftPressed && speed > CONFIG.PLAYER.MOVE_SPEED * 1.1;
+            const shouldPlayRun = isForwardPressed && this.isRunning && speed > CONFIG.PLAYER.MOVE_SPEED * 1.1;
 
             if (shouldPlayRun) {
                 this.playAnimation('run', 0.3);
