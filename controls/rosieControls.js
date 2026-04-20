@@ -182,6 +182,8 @@ class ThirdPersonCameraController {
 
     // Configuration
     this.distance = options.distance || 8;
+    this.minDistance = options.minDistance || 2.5;
+    this.maxDistance = options.maxDistance || 12;
     this.height = options.height || 4;
     this.rotationSpeed = options.rotationSpeed || 0.003;
     this.pitchSpeed = options.pitchSpeed || 0.003;
@@ -241,6 +243,13 @@ class ThirdPersonCameraController {
     document.addEventListener('mouseup', () => {
       this.isDragging = false;
     });
+
+    this.domElement.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const zoomStep = e.deltaY * 0.01;
+      this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, this.distance + zoomStep));
+    }, { passive: false });
 
     // Touch controls
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {

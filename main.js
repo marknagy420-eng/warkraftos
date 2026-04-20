@@ -21,14 +21,143 @@ class Game {
 
         // THREE.Clock gives reliable per-frame delta for gameplay movement.
         this.clock = new THREE.Clock();
-        
-        // Initialize Components
+
+        this.ui = null;
+        this.player = null;
+        this.world = null;
+        this.isStarted = false;
+        this.mapVisible = false;
+
+        this.setupStartMenu();
+        this.setupMapOverlay();
+        this.setupEventListeners();
+        this.animate();
+    }
+
+    setupStartMenu() {
+        const menu = document.createElement('div');
+        menu.id = 'start-menu';
+        menu.style.position = 'fixed';
+        menu.style.inset = '0';
+        menu.style.display = 'flex';
+        menu.style.flexDirection = 'column';
+        menu.style.alignItems = 'center';
+        menu.style.justifyContent = 'center';
+        menu.style.gap = '12px';
+        menu.style.background = 'radial-gradient(circle at top, rgba(39,55,95,0.95), rgba(8,12,24,0.95))';
+        menu.style.color = '#f5f6ff';
+        menu.style.fontFamily = "'Orbitron', sans-serif";
+        menu.style.zIndex = '1000';
+
+        const title = document.createElement('h1');
+        title.textContent = 'Warcraft Odyssey';
+        title.style.margin = '0';
+        title.style.letterSpacing = '2px';
+
+        const info = document.createElement('div');
+        info.style.fontSize = '14px';
+        info.style.opacity = '0.85';
+        info.textContent = 'W = támadás + előre | M = térkép | Egér görgő = zoom';
+
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Belépés a játékba';
+        startButton.style.padding = '12px 22px';
+        startButton.style.fontSize = '16px';
+        startButton.style.fontFamily = "'Orbitron', sans-serif";
+        startButton.style.border = '2px solid #8aa2ff';
+        startButton.style.borderRadius = '8px';
+        startButton.style.background = '#192549';
+        startButton.style.color = '#fff';
+        startButton.style.cursor = 'pointer';
+        startButton.addEventListener('click', () => {
+            this.startGame();
+            menu.remove();
+        });
+
+        menu.append(title, info, startButton);
+        document.body.appendChild(menu);
+    }
+
+    startGame() {
+        if (this.isStarted) return;
         this.ui = new UI();
         this.player = new Player(this.scene, this.camera, this.renderer.domElement);
         this.world = new World(this.scene);
-        
-        this.setupEventListeners();
-        this.animate();
+        this.isStarted = true;
+    }
+
+    setupMapOverlay() {
+        const map = document.createElement('div');
+        map.id = 'world-map';
+        map.style.position = 'fixed';
+        map.style.top = '50%';
+        map.style.left = '50%';
+        map.style.transform = 'translate(-50%, -50%)';
+        map.style.width = 'min(70vw, 760px)';
+        map.style.height = 'min(70vh, 520px)';
+        map.style.border = '3px solid #6d5d43';
+        map.style.borderRadius = '12px';
+        map.style.boxShadow = '0 24px 60px rgba(0,0,0,0.5)';
+        map.style.background = "url('assets/fold.jpg') center/cover";
+        map.style.display = 'none';
+        map.style.zIndex = '950';
+        map.style.overflow = 'hidden';
+        map.style.pointerEvents = 'none';
+
+        const title = document.createElement('div');
+        title.textContent = 'WORLD MAP (M)';
+        title.style.position = 'absolute';
+        title.style.top = '8px';
+        title.style.left = '50%';
+        title.style.transform = 'translateX(-50%)';
+        title.style.padding = '4px 10px';
+        title.style.background = 'rgba(15, 10, 3, 0.6)';
+        title.style.color = '#f8e8c5';
+        title.style.fontFamily = "'Orbitron', sans-serif";
+        title.style.fontSize = '13px';
+        title.style.borderRadius = '6px';
+
+        this.mapPlayerDot = document.createElement('div');
+        this.mapPlayerDot.style.position = 'absolute';
+        this.mapPlayerDot.style.width = '12px';
+        this.mapPlayerDot.style.height = '12px';
+        this.mapPlayerDot.style.borderRadius = '50%';
+        this.mapPlayerDot.style.background = '#1abc9c';
+        this.mapPlayerDot.style.border = '2px solid #eafff9';
+        this.mapPlayerDot.style.transform = 'translate(-50%, -50%)';
+
+        const hutPositions = [
+            [25, 25], [-25, 25], [25, -25], [-25, -25], [0, 45]
+        ];
+        hutPositions.forEach(([x, z]) => {
+            const marker = document.createElement('div');
+            marker.style.position = 'absolute';
+            marker.style.width = '10px';
+            marker.style.height = '10px';
+            marker.style.background = '#d35400';
+            marker.style.border = '1px solid #ffe7cf';
+            marker.style.transform = 'translate(-50%, -50%)';
+            const nx = (x / 150 + 0.5) * 100;
+            const nz = (z / 150 + 0.5) * 100;
+            marker.style.left = `${nx}%`;
+            marker.style.top = `${nz}%`;
+            map.appendChild(marker);
+        });
+
+        map.append(title, this.mapPlayerDot);
+        document.body.appendChild(map);
+        this.mapElement = map;
+    }
+
+    updateMapPlayerMarker() {
+        if (!this.player || !this.mapPlayerDot) return;
+        const worldRadius = 150;
+        const px = Math.max(-worldRadius, Math.min(worldRadius, this.player.mesh.position.x));
+        const pz = Math.max(-worldRadius, Math.min(worldRadius, this.player.mesh.position.z));
+        const left = (px / (worldRadius * 2) + 0.5) * 100;
+        const top = (pz / (worldRadius * 2) + 0.5) * 100;
+        this.mapPlayerDot.style.left = `${left}%`;
+        this.mapPlayerDot.style.top = `${top}%`;
     }
 
     setupEventListeners() {
@@ -38,8 +167,16 @@ class Game {
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyM') {
+                this.mapVisible = !this.mapVisible;
+                this.mapElement.style.display = this.mapVisible ? 'block' : 'none';
+            }
+        });
+
         // Simple Combat System
         window.addEventListener('player-attack', (e) => {
+            if (!this.player || !this.world) return;
             const { player } = e.detail;
             
             // Get camera forward direction to determine attack arc
@@ -100,9 +237,12 @@ class Game {
         requestAnimationFrame(() => this.animate());
         
         const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1); // keep movement responsive
-        
-        this.player.update(deltaTime, this.world);
-        this.world.update(deltaTime, this.player);
+
+        if (this.isStarted && this.player && this.world) {
+            this.player.update(deltaTime, this.world);
+            this.world.update(deltaTime, this.player);
+            this.updateMapPlayerMarker();
+        }
         
         this.renderer.render(this.scene, this.camera);
     }

@@ -58,7 +58,7 @@ export class UI {
         prompt.style.fontSize = '24px';
         prompt.style.textShadow = '2px 2px #000';
         prompt.style.pointerEvents = 'none';
-        prompt.innerHTML = 'Left Click to Attack | WASD to Move';
+        prompt.innerHTML = 'W to Attack/Move Forward | WASD to Move | M for Map';
         document.body.appendChild(prompt);
 
         this.hpBar = hud.querySelector('#hp-bar');
