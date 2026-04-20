@@ -249,32 +249,17 @@ class ThirdPersonCameraController {
   enable() { this.enabled = true; }
   disable() { this.enabled = false; this.isDragging = false; }
 
-  update(deltaTime = 0.016, moveDirection = null) {
+  update(deltaTime = 0.016, playerYaw = null) {
     if (!this.enabled) return 0;
 
-    // Auto-rotate camera to stay behind character when moving
-    // If we have a movement direction and we're NOT dragging/looking, slowly align
-    if (moveDirection && moveDirection.lengthSq() > 0.01 && 
+    // Keep camera naturally behind the character unless the user is actively rotating camera.
+    if (typeof playerYaw === 'number' &&
         document.pointerLockElement !== this.domElement && !this.isDragging) {
-      
-      // Calculate local rotation offset from movement direction
-      // W: atan2(0, -1) = PI. We want offset 0.
-      // S: atan2(0, 1) = 0. We want offset PI.
-      // A: atan2(-1, 0) = -PI/2. We want offset PI/2.
-      // D: atan2(1, 0) = PI/2. We want offset -PI/2.
-      const localAngle = Math.PI - Math.atan2(moveDirection.x, moveDirection.z);
-      const targetRotation = this.rotation + localAngle;
-      
-      // Simple angular interpolation
-      let diff = targetRotation - this.rotation;
+      const desiredBehind = playerYaw + Math.PI;
+      let diff = desiredBehind - this.rotation;
       while (diff < -Math.PI) diff += Math.PI * 2;
       while (diff > Math.PI) diff -= Math.PI * 2;
-      
-      // Only auto-rotate if we are moving significantly sideways or backwards
-      // This prevents the camera from jittering when just moving forward
-      if (Math.abs(diff) > 0.01) {
-        this.rotation += diff * this.autoRotationSpeed * deltaTime;
-      }
+      this.rotation += diff * this.autoRotationSpeed * deltaTime;
     }
 
     // Calculate camera position using spherical coordinates

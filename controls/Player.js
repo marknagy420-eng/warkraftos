@@ -4,14 +4,6 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { PlayerController, ThirdPersonCameraController } from './rosieControls.js';
 import { CONFIG } from './config.js';
 
-// Blacklisted animation names — NEVER use these for any state
-const BLACKLIST = ['box_03', 'box', 'boxing', 'punch'];
-
-function isBlacklisted(name) {
-    const lower = name.toLowerCase();
-    return BLACKLIST.some(b => lower.includes(b));
-}
-
 export class Player {
     constructor(scene, camera, domElement) {
         this.scene = scene;
@@ -71,39 +63,43 @@ export class Player {
             // --- Animation Discovery ---
             if (gltf.animations && gltf.animations.length > 0) {
                 this.mixer = new THREE.AnimationMixer(this.model);
-                // Filter out blacklisted clips entirely
-                const clips = gltf.animations.filter(c => !isBlacklisted(c.name));
-                console.log('Player GLB clips (filtered):', clips.map(c => c.name));
+                const clips = gltf.animations;
+                console.log('Player GLB clips:', clips.map(c => c.name));
 
-                // Ordered mapping: first match wins per state
                 const mapping = {
-                    idle:       ['wait', 'idle', 'standing', 'stay'],
-                    look_around:['look_around', 'lookaround', 'look'],
-                    walk:       ['walk', 'moving', 'step'],
-                    run:        ['run', 'sprint', 'fast_run', 'jog'],
-                    jump:       ['jump', 'leap', 'falling'],
-                    land:       ['land', 'ground', 'recover'],
-                    attack:     ['attack', 'slash', 'strike', 'hit', 'swing']
+                    idle: ['wait', 'idle', 'standing', 'stay'],
+                    look_around: ['look_around', 'lookaround', 'look'],
+                    walk: ['walk', 'moving', 'step'],
+                    run: ['run', 'sprint', 'fast_run', 'jog'],
+                    jump: ['jump', 'leap', 'falling'],
+                    land: ['land', 'ground', 'recover'],
+                    attack: ['box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
+                };
+
+                const findClipByTags = (tags) => {
+                    for (const tag of tags) {
+                        const lowerTag = tag.toLowerCase();
+                        const exact = clips.find(c => c.name.toLowerCase() === lowerTag);
+                        if (exact) return exact;
+                        const partial = clips.find(c => c.name.toLowerCase().includes(lowerTag));
+                        if (partial) return partial;
+                    }
+                    return null;
                 };
 
                 for (const [state, tags] of Object.entries(mapping)) {
-                    for (const tag of tags) {
-                        const clip = clips.find(c => c.name.toLowerCase().includes(tag.toLowerCase()));
-                        if (clip) {
-                            const action = this.mixer.clipAction(clip);
-                            // One-shot animations
-                            if (['jump', 'land', 'attack', 'look_around'].includes(state)) {
-                                action.setLoop(THREE.LoopOnce, 1);
-                                action.clampWhenFinished = true;
-                            }
-                            this.actions[state] = action;
-                            console.log(`  -> Mapped [${state}]: "${clip.name}"`);
-                            break;
-                        }
+                    const clip = findClipByTags(tags);
+                    if (!clip) continue;
+
+                    const action = this.mixer.clipAction(clip);
+                    if (['jump', 'land', 'attack', 'look_around'].includes(state)) {
+                        action.setLoop(THREE.LoopOnce, 1);
+                        action.clampWhenFinished = true;
                     }
+                    this.actions[state] = action;
+                    console.log(`  -> Mapped [${state}]: "${clip.name}"`);
                 }
 
-                // Fallback idle: pick first non-blacklisted clip
                 if (!this.actions.idle && clips.length > 0) {
                     this.actions.idle = this.mixer.clipAction(clips[0]);
                     console.log('  -> Fallback idle:', clips[0].name);
@@ -135,8 +131,8 @@ export class Player {
         });
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
-            distance: 8,
-            height: 4
+            distance: 6.5,
+            height: 2.8
         });
 
         this.setupInput();
@@ -328,9 +324,8 @@ export class Player {
             this.controller.groundLevel = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
         }
 
-        // Camera follows behind the character's facing direction
-        const rotation = this.cameraController.update(deltaTime, this.mesh.rotation.y);
-        this.controller.update(deltaTime, rotation);
+        this.controller.update(deltaTime, this.cameraController.rotation);
+        this.cameraController.update(deltaTime, this.mesh.rotation.y);
 
         if (world && world.checkCollisions) {
             const pushBack = world.checkCollisions(this.mesh.position, 1.2);
