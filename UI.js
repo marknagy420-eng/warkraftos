@@ -58,13 +58,34 @@ export class UI {
         prompt.style.fontSize = '24px';
         prompt.style.textShadow = '2px 2px #000';
         prompt.style.pointerEvents = 'none';
-        prompt.innerHTML = 'W to Attack/Move Forward | WASD to Move | M for Map';
+        prompt.innerHTML = 'WASD Move | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
         document.body.appendChild(prompt);
+
+        const inventory = document.createElement('div');
+        inventory.id = 'inventory-panel';
+        inventory.style.position = 'fixed';
+        inventory.style.bottom = '110px';
+        inventory.style.right = '20px';
+        inventory.style.width = '240px';
+        inventory.style.background = 'rgba(0,0,0,0.65)';
+        inventory.style.border = '2px solid #666';
+        inventory.style.borderRadius = '8px';
+        inventory.style.padding = '12px';
+        inventory.style.fontFamily = "'Orbitron', sans-serif";
+        inventory.style.color = CONFIG.COLORS.UI_TEXT;
+        inventory.style.display = 'none';
+        inventory.innerHTML = `
+            <div style="font-size: 15px; margin-bottom: 8px;">INVENTORY (I)</div>
+            <div id="weapon-slot" style="font-size: 13px; opacity: 0.9;">Weapon Slot: Empty</div>
+        `;
+        document.body.appendChild(inventory);
 
         this.hpBar = hud.querySelector('#hp-bar');
         this.xpBar = hud.querySelector('#xp-bar');
         this.killCountSpan = questLog.querySelector('#kill-count');
         this.goldDisplay = hud.querySelector('#gold-display');
+        this.weaponSlot = inventory.querySelector('#weapon-slot');
+        this.inventoryPanel = inventory;
         
         this.gold = 0;
         this.kills = 0;
@@ -92,6 +113,16 @@ export class UI {
             const { gold } = e.detail;
             this.addGold(gold);
             this.showMessage(`Found ${gold} gold!`);
+        });
+
+        window.addEventListener('inventory-toggle', (e) => {
+            const { visible } = e.detail;
+            this.inventoryPanel.style.display = visible ? 'block' : 'none';
+        });
+
+        window.addEventListener('weapon-changed', (e) => {
+            const { equipped } = e.detail;
+            this.weaponSlot.textContent = equipped ? 'Weapon Slot: Golden Sword (equipped)' : 'Weapon Slot: Empty';
         });
     }
 

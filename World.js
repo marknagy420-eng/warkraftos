@@ -344,7 +344,7 @@ export class World {
             }
 
             const terrainH = this.getTerrainHeight(pos.x, pos.z);
-            const s = 3 + Math.random() * 4; // Larger scale to compensate for lower count
+            const s = 1.5 + Math.random() * 2; // ~half size grass compared to previous setup
             dummy.position.set(pos.x, terrainH - (minY * s), pos.z);
             dummy.rotation.y = Math.random() * Math.PI * 2;
             dummy.scale.set(s, s, s);
