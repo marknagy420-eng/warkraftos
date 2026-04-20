@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { CONFIG } from './config.js';
 import { Enemy } from './Enemy.js';
+import { DeerNPC } from './DeerNPC.js';
 import { getRandomPosition } from './utils.js';
 
 export class World {
@@ -16,6 +17,8 @@ export class World {
         this.treeGltf = null;
         this.hutGltf = null;
         this.grassGltf = null;
+        this.deerGltf = null;
+        this.deerNpcs = [];
         
         // Spatial Database (Grid) for performance optimization
         this.gridSize = 20; 
@@ -107,6 +110,19 @@ export class World {
             this.createHut(new THREE.Vector3(-25, 0, -25));
             this.createHut(new THREE.Vector3(0, 0, 45));
         });
+
+        // Load passive Deer NPC model
+        loader.load(
+            'assets/deer+3d+model_Clone1.glb',
+            (gltf) => {
+                this.deerGltf = gltf;
+                this.setupDeerNpcs();
+            },
+            undefined,
+            (error) => {
+                console.warn('Failed to load deer+3d+model_Clone1.glb (passive NPC disabled):', error);
+            }
+        );
     }
 
 
@@ -390,6 +406,21 @@ export class World {
         }
     }
 
+    setupDeerNpcs() {
+        if (!this.deerGltf) return;
+
+        for (let i = 0; i < CONFIG.WORLD.DEER_COUNT; i++) {
+            const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
+            if (pos.length() < 30) {
+                i--;
+                continue;
+            }
+            pos.y = this.getTerrainHeight(pos.x, pos.z);
+            const deer = new DeerNPC(this.scene, pos, this.deerGltf, this);
+            this.deerNpcs.push(deer);
+        }
+    }
+
     update(deltaTime, player) {
         // Move sky with player to avoid clipping
         if (this.sky) {
@@ -397,6 +428,7 @@ export class World {
         }
 
         this.enemies.forEach(enemy => enemy.update(deltaTime, player, this));
+        this.deerNpcs.forEach((deer) => deer.update(deltaTime));
         
         // Check for chest pickup
         this.chests.forEach((chest, index) => {

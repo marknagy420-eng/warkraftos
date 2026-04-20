@@ -25,6 +25,7 @@ export const CONFIG = {
         TREE_COUNT: 800,
         TREASURE_COUNT: 50,
         GOBLIN_CAMP_COUNT: 25,
+        DEER_COUNT: 40,
     },
     COLORS: {
         UI_HEALTH: '#e74c3c',

@@ -167,7 +167,7 @@ export class Player {
             jumpForce: CONFIG.PLAYER.JUMP_FORCE,
             gravity: CONFIG.PLAYER.GRAVITY,
             groundLevel: 0,
-            modelFacingOffset: Math.PI / 2
+            modelFacingOffset: -Math.PI / 2
         });
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
