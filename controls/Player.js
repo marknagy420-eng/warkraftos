@@ -23,6 +23,16 @@ export class Player {
         this.weaponEquipped = false;
         this.sword = null;
         this.swordHand = null;
+        this.swordIdlePose = {
+            position: new THREE.Vector3(0.03, -0.02, -0.01),
+            rotation: new THREE.Euler(Math.PI, -Math.PI / 2, -Math.PI / 4, 'XYZ')
+        };
+        this.swordSwingPose = {
+            position: new THREE.Vector3(0.2, -0.12, -0.26),
+            rotation: new THREE.Euler(Math.PI * 0.75, -Math.PI / 2, Math.PI / 2, 'XYZ')
+        };
+        this.attackAnimationDuration = 0.2;
+        this.attackElapsed = 0;
 
         // Idle variation system
         this.idleTimer = 0;
@@ -212,11 +222,8 @@ export class Player {
 
         this.isAttacking = true;
         this.lastAttackTime = now;
+        this.attackElapsed = 0;
         this.isPlayingIdleVariation = false;
-
-        setTimeout(() => {
-            this.isAttacking = false;
-        }, 250);
 
         window.dispatchEvent(new CustomEvent('player-attack', { detail: { player: this } }));
     }
@@ -291,6 +298,49 @@ export class Player {
 
         this.updateMovementAnimation();
         this.updateIdleVariation(deltaTime);
+        this.updateSwordAnimation(deltaTime);
+    }
+
+    updateSwordAnimation(deltaTime) {
+        if (!this.sword) return;
+
+        const applySwordPose = (position, rotation) => {
+            this.sword.position.copy(position);
+            this.sword.rotation.set(rotation.x, rotation.y, rotation.z);
+        };
+
+        if (!this.weaponEquipped) {
+            this.isAttacking = false;
+            this.attackElapsed = 0;
+            applySwordPose(this.swordIdlePose.position, this.swordIdlePose.rotation);
+            return;
+        }
+
+        if (this.isAttacking) {
+            this.attackElapsed += deltaTime;
+            const rawProgress = this.attackElapsed / this.attackAnimationDuration;
+            const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
+            const easedProgress = Math.sin(progress * Math.PI);
+
+            this.sword.position.lerpVectors(
+                this.swordIdlePose.position,
+                this.swordSwingPose.position,
+                easedProgress
+            );
+            this.sword.rotation.set(
+                THREE.MathUtils.lerp(this.swordIdlePose.rotation.x, this.swordSwingPose.rotation.x, easedProgress),
+                THREE.MathUtils.lerp(this.swordIdlePose.rotation.y, this.swordSwingPose.rotation.y, easedProgress),
+                THREE.MathUtils.lerp(this.swordIdlePose.rotation.z, this.swordSwingPose.rotation.z, easedProgress)
+            );
+
+            if (progress >= 1) {
+                this.isAttacking = false;
+                this.attackElapsed = 0;
+            }
+            return;
+        }
+
+        applySwordPose(this.swordIdlePose.position, this.swordIdlePose.rotation);
     }
 
     toggleInventory() {
@@ -312,16 +362,34 @@ export class Player {
             (gltf) => {
                 this.sword = cloneSkeleton(gltf.scene);
                 this.sword.scale.set(0.5, 0.5, 0.5);
-                this.sword.rotation.set(0, 0, Math.PI / 2);
-                this.sword.position.set(0.06, 0.02, 0.02);
+                this.sword.position.copy(this.swordIdlePose.position);
+                this.sword.rotation.set(
+                    this.swordIdlePose.rotation.x,
+                    this.swordIdlePose.rotation.y,
+                    this.swordIdlePose.rotation.z
+                );
                 this.sword.visible = false;
 
                 this.swordHand = null;
                 this.model.traverse((child) => {
-                    if (!this.swordHand && child.isBone && /hand|wrist|arm/i.test(child.name)) {
+                    if (!this.swordHand && child.isBone && /right.*hand|hand.*right|r_hand|hand_r|mixamorig.*righthand/i.test(child.name)) {
                         this.swordHand = child;
                     }
                 });
+                if (!this.swordHand) {
+                    this.model.traverse((child) => {
+                        if (!this.swordHand && child.isBone && /hand|wrist/i.test(child.name)) {
+                            this.swordHand = child;
+                        }
+                    });
+                }
+                if (!this.swordHand) {
+                    this.model.traverse((child) => {
+                        if (!this.swordHand && child.isBone && /arm/i.test(child.name)) {
+                            this.swordHand = child;
+                        }
+                    });
+                }
 
                 if (this.swordHand) {
                     this.swordHand.add(this.sword);
