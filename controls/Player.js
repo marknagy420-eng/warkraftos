@@ -29,14 +29,27 @@ export class Player {
         this.currentAction = null;
         this.currentAnimName = null;
 
+        this.animationAliases = {
+            idle: ['idle', 'wait', 'standing', 'stay'],
+            look_around: ['look_around', 'lookaround', 'look'],
+            walk: ['walk', 'moving', 'step'],
+            run: ['run', 'sprint', 'fast_run', 'jog'],
+            jump: ['jump', 'leap', 'falling'],
+            land: ['land', 'ground', 'recover'],
+            attack: ['box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
+        };
+
         // Container mesh
         this.mesh = new THREE.Group();
         this.scene.add(this.mesh);
 
         // Load Player GLB
         const loader = new GLTFLoader();
-        loader.load('assets/15dd3a19-9030-49b7-a43b-e19073e3cca5.glb', (gltf) => {
-            this.model = cloneSkeleton(gltf.scene);
+        Promise.all([
+            loader.loadAsync('assets/15dd3a19-9030-49b7-a43b-e19073e3cca5.glb'),
+            loader.loadAsync('assets/15dd3a19-9030-49b7-a43b-e19073e3cca5-1.glb').catch(() => null)
+        ]).then(([characterGltf, animationGltf]) => {
+            this.model = cloneSkeleton(characterGltf.scene);
 
             // Auto-scale to ~2 units height
             this.model.updateMatrixWorld(true);
@@ -61,20 +74,13 @@ export class Player {
             this.mesh.add(this.model);
 
             // --- Animation Discovery ---
-            if (gltf.animations && gltf.animations.length > 0) {
-                this.mixer = new THREE.AnimationMixer(this.model);
-                const clips = gltf.animations;
-                console.log('Player GLB clips:', clips.map(c => c.name));
+            const clips = characterGltf.animations?.length > 0
+                ? characterGltf.animations
+                : (animationGltf?.animations || []);
 
-                const mapping = {
-                    idle: ['wait', 'idle', 'standing', 'stay'],
-                    look_around: ['look_around', 'lookaround', 'look'],
-                    walk: ['walk', 'moving', 'step'],
-                    run: ['run', 'sprint', 'fast_run', 'jog'],
-                    jump: ['jump', 'leap', 'falling'],
-                    land: ['land', 'ground', 'recover'],
-                    attack: ['box_03', 'box03', 'attack', 'slash', 'strike', 'hit', 'swing']
-                };
+            if (clips.length > 0) {
+                this.mixer = new THREE.AnimationMixer(this.model);
+                console.log('Player GLB clips:', clips.map(c => c.name));
 
                 const findClipByTags = (tags) => {
                     for (const tag of tags) {
@@ -87,7 +93,7 @@ export class Player {
                     return null;
                 };
 
-                for (const [state, tags] of Object.entries(mapping)) {
+                for (const [state, tags] of Object.entries(this.animationAliases)) {
                     const clip = findClipByTags(tags);
                     if (!clip) continue;
 
@@ -120,6 +126,8 @@ export class Player {
             } else {
                 console.warn('No animations found in player GLB!');
             }
+        }).catch((error) => {
+            console.error('Player model loading failed:', error);
         });
 
         // Controls
