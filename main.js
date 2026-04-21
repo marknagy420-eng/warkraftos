@@ -7,25 +7,24 @@ import { ModularCharacter } from './controls/character/ModularCharacter.js';
 import { World } from './World.js';
 import { UI } from './UI.js';
 import { CONFIG } from './config.js';
-import { distance2D } from './utils.js';
+import { StartMenu } from './StartMenu.js';
+import { DEFAULT_SETTINGS, GameSettingsStore, t } from './settings.js';
+
+THREE.Cache.enabled = true;
 
 class Game {
     constructor() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000); // Increased far plane to 5000
-        this.renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            powerPreference: 'high-performance'
-        });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.settingsStore = new GameSettingsStore();
+        this.settings = { ...DEFAULT_SETTINGS, ...this.settingsStore.get() };
+        this.savedGameState = this.settingsStore.loadGameState();
+
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        this.renderer = this.buildRenderer();
+        this.applyGraphicsSettings(this.settings);
         document.body.appendChild(this.renderer.domElement);
 
-        // THREE.Clock gives reliable per-frame delta for gameplay movement.
         this.clock = new THREE.Clock();
-
         this.ui = null;
         this.player = null;
         this.characterManager = null;
@@ -33,67 +32,110 @@ class Game {
         this.world = null;
         this.isStarted = false;
         this.mapVisible = false;
-
         this.mapStaticMarkers = [];
-        this.setupStartMenu();
+
         this.setupMapOverlay();
         this.setupEventListeners();
+        this.initStartFlow();
         this.animate();
     }
 
-    setupStartMenu() {
-        const menu = document.createElement('div');
-        menu.id = 'start-menu';
-        menu.style.position = 'fixed';
-        menu.style.inset = '0';
-        menu.style.display = 'flex';
-        menu.style.flexDirection = 'column';
-        menu.style.alignItems = 'center';
-        menu.style.justifyContent = 'center';
-        menu.style.gap = '12px';
-        menu.style.background = 'radial-gradient(circle at top, rgba(39,55,95,0.95), rgba(8,12,24,0.95))';
-        menu.style.color = '#f5f6ff';
-        menu.style.fontFamily = "'Orbitron', sans-serif";
-        menu.style.zIndex = '1000';
-
-        const title = document.createElement('h1');
-        title.textContent = 'Warcraft Odyssey';
-        title.style.margin = '0';
-        title.style.letterSpacing = '2px';
-
-        const info = document.createElement('div');
-        info.style.fontSize = '14px';
-        info.style.opacity = '0.85';
-        info.textContent = 'WASD mozgás | Shift futás | C guggolás | Space ugrás | M térkép | Egér görgő = zoom';
-
-        const startButton = document.createElement('button');
-        startButton.textContent = 'Belépés a játékba';
-        startButton.style.padding = '12px 22px';
-        startButton.style.fontSize = '16px';
-        startButton.style.fontFamily = "'Orbitron', sans-serif";
-        startButton.style.border = '2px solid #8aa2ff';
-        startButton.style.borderRadius = '8px';
-        startButton.style.background = '#192549';
-        startButton.style.color = '#fff';
-        startButton.style.cursor = 'pointer';
-        startButton.addEventListener('click', () => {
-            this.startGame();
-            menu.remove();
+    buildRenderer() {
+        const preferHighPerformance = !!this.settings.useDedicatedGPU;
+        const renderer = new THREE.WebGLRenderer({
+            antialias: this.settings.graphicsPreset !== 'low',
+            powerPreference: preferHighPerformance ? 'high-performance' : 'low-power'
         });
-
-        menu.append(title, info, startButton);
-        document.body.appendChild(menu);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = this.settings.graphicsPreset !== 'low';
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = this.settings.hdr ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+        renderer.toneMappingExposure = this.settings.brightness / 100;
+        return renderer;
     }
 
-    startGame() {
+    async initStartFlow() {
+        const gpuInfo = await this.detectGPU();
+        this.startMenu = new StartMenu({
+            settings: this.settings,
+            hasSave: !!this.savedGameState,
+            gpuInfo,
+            onApplySettings: (nextSettings) => {
+                this.settings = this.settingsStore.save(nextSettings);
+                this.applyGraphicsSettings(this.settings);
+                this.applyAudioSettings(this.settings);
+                this.applyLanguage(this.settings.language);
+                this.applyDifficulty(this.settings);
+            },
+            onStart: ({ mode, characterId }) => {
+                if (mode === 'new') this.settingsStore.clearSaves();
+                this.startGame({ mode, characterId });
+            }
+        });
+        this.applyLanguage(this.settings.language);
+    }
+
+    async detectGPU() {
+        try {
+            let adapterName = 'WebGL';
+            if (navigator.gpu?.requestAdapter) {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (adapter?.info?.description) adapterName = adapter.info.description;
+            }
+            const gl = this.renderer.getContext();
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            const webglRenderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown GPU';
+            return { text: `GPU: ${adapterName} | Renderer: ${webglRenderer}` };
+        } catch {
+            return { text: 'GPU detection unavailable in this browser' };
+        }
+    }
+
+    applyGraphicsSettings(settings) {
+        const presetScale = { low: 0.65, medium: 0.8, high: 1, ultra: 1.2 };
+        const upscaleScale = { off: 1, quality: 0.95, balanced: 0.8, performance: 0.67 };
+
+        let pixelRatio = Math.min(window.devicePixelRatio || 1, presetScale[settings.graphicsPreset] ?? 1);
+        pixelRatio *= upscaleScale[settings.upscale] ?? 1;
+        if (!settings.nativeResolution) pixelRatio *= 0.8;
+        if (settings.dlss) pixelRatio *= 0.85;
+
+        this.renderer.setPixelRatio(Math.max(0.5, Math.min(pixelRatio, 1.7)));
+        this.renderer.shadowMap.enabled = settings.graphicsPreset !== 'low';
+        this.renderer.shadowMap.type = settings.graphicsPreset === 'ultra' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = settings.hdr ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = settings.brightness / 100;
+
+        if (this.world?.applyQualitySettings) this.world.applyQualitySettings(settings);
+        if (this.characterManager?.applyQualitySettings) this.characterManager.applyQualitySettings(settings);
+    }
+
+    applyAudioSettings(settings) {
+        window.dispatchEvent(new CustomEvent('audio-settings-changed', { detail: settings }));
+    }
+
+    applyLanguage(language) {
+        window.dispatchEvent(new CustomEvent('language-changed', { detail: { language } }));
+        if (this.startMenu?.root?.isConnected) return;
+        const prompt = document.getElementById('game-prompt');
+        if (prompt) prompt.textContent = t(language, 'hudPrompt');
+    }
+
+    applyDifficulty(settings) {
+        window.dispatchEvent(new CustomEvent('difficulty-settings-changed', { detail: settings }));
+    }
+
+    startGame({ mode = 'new', characterId = 'fbx-warrior' } = {}) {
         if (this.isStarted) return;
-        this.ui = new UI();
+        this.ui = new UI(this.settings.language);
         this.player = new Player(this.scene, this.camera, this.renderer.domElement);
-        this.world = new World(this.scene);
+        this.world = new World(this.scene, this.settings);
 
         this.characterManager = new CharacterManager();
         this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: true });
         this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: false });
+        this.characterManager.switchTo(characterId);
 
         const spawn = this.world.getPlayerSpawnPoint?.();
         if (spawn) {
@@ -102,10 +144,21 @@ class Game {
             modular?.setSpawnPoint?.(spawn);
         }
 
-        this.characterMenu = new CharacterSelectionMenu(this.characterManager);
+        if (mode === 'continue' && this.savedGameState?.position) {
+            const activeCharacter = this.characterManager.getActiveCharacter();
+            activeCharacter?.mesh?.position?.set(
+                this.savedGameState.position.x,
+                this.savedGameState.position.y,
+                this.savedGameState.position.z
+            );
+        }
+
+        this.characterMenu = new CharacterSelectionMenu(this.characterManager, this.settings.language);
         this.characterMenu.render();
         this.rebuildMapStaticMarkers();
 
+        this.applyGraphicsSettings(this.settings);
+        this.applyDifficulty(this.settings);
         this.isStarted = true;
     }
 
@@ -166,7 +219,6 @@ class Game {
         this.mapPlayerDot.style.top = `${top}%`;
     }
 
-
     toMapPercent(pos, worldRadius = 500) {
         const x = Math.max(-worldRadius, Math.min(worldRadius, pos.x));
         const z = Math.max(-worldRadius, Math.min(worldRadius, pos.z));
@@ -209,11 +261,25 @@ class Game {
     }
 
     setupEventListeners() {
+        window.addEventListener('beforeunload', () => {
+            const activeCharacter = this.characterManager?.getActiveCharacter();
+            if (activeCharacter?.mesh?.position) {
+                this.settingsStore.saveGameState({
+                    position: {
+                        x: activeCharacter.mesh.position.x,
+                        y: activeCharacter.mesh.position.y,
+                        z: activeCharacter.mesh.position.z
+                    },
+                    timestamp: Date.now()
+                });
+            }
+        });
+
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+            this.applyGraphicsSettings(this.settings);
         });
 
         window.addEventListener('keydown', (e) => {
@@ -224,14 +290,12 @@ class Game {
             }
         });
 
-        // Simple Combat System
-        window.addEventListener('player-attack', (e) => {
+        window.addEventListener('player-attack', () => {
             if (!this.characterManager || !this.world) return;
             const activeCharacter = this.characterManager.getActiveCharacter();
             if (!activeCharacter) return;
             const player = activeCharacter.player || activeCharacter;
-            
-            // Get camera forward direction to determine attack arc
+
             const camForward = new THREE.Vector3(0, 0, -1);
             camForward.applyQuaternion(this.camera.quaternion);
             camForward.y = 0;
@@ -242,10 +306,8 @@ class Game {
                     const toEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, player.mesh.position);
                     const dist = toEnemy.length();
                     toEnemy.normalize();
-                    
-                    // Dot product check for ~90 degree cone in front of camera
                     const dot = camForward.dot(toEnemy);
-                    
+
                     if (dist < CONFIG.PLAYER.ATTACK_RANGE && dot > 0.5) {
                         enemy.takeDamage(CONFIG.PLAYER.DAMAGE);
                         this.showHitEffect(enemy.mesh.position);
@@ -256,24 +318,23 @@ class Game {
     }
 
     showHitEffect(pos) {
-        // More robust hit effect without setInterval
         const sphereGeo = new THREE.SphereGeometry(0.5, 12, 12);
         const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
         const hit = new THREE.Mesh(sphereGeo, sphereMat);
         hit.position.copy(pos);
         hit.position.y += 1.5;
         this.scene.add(hit);
-        
+
         const startTime = performance.now();
         const duration = 400;
 
         const animateHit = (now) => {
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             hit.scale.setScalar(1 + progress * 2);
             hit.material.opacity = 1 - progress;
-            
+
             if (progress < 1) {
                 requestAnimationFrame(animateHit);
             } else {
@@ -287,8 +348,8 @@ class Game {
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        
-        const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1); // keep movement responsive
+
+        const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1);
 
         if (this.isStarted && this.characterManager && this.world) {
             this.characterManager.update(deltaTime, this.world);
@@ -299,7 +360,7 @@ class Game {
             }
             this.updateMapPlayerMarker();
         }
-        
+
         this.renderer.render(this.scene, this.camera);
     }
 }

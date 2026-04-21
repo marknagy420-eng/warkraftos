@@ -1,5 +1,6 @@
 export class CharacterSelectionMenu {
-    constructor(characterManager) {
+    constructor(characterManager, language = 'en') {
+        this.language = language;
         this.characterManager = characterManager;
         this.container = document.createElement('div');
         this.container.id = 'character-selection-menu';
@@ -15,7 +16,7 @@ export class CharacterSelectionMenu {
         this.container.style.zIndex = '980';
 
         const title = document.createElement('div');
-        title.textContent = 'CHARACTERS';
+        title.textContent = this.language === 'hu' ? 'KARAKTEREK' : 'CHARACTERS';
         title.style.fontSize = '12px';
         title.style.marginBottom = '8px';
         this.container.appendChild(title);

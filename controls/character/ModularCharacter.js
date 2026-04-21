@@ -45,6 +45,7 @@ export class ModularCharacter {
         this.lockedAnimationTimer = 0;
         this.lastAttackTime = 0;
         this.spawnPoint = new THREE.Vector3(0, 0, 0);
+        this.damageTakenMultiplier = 1;
 
         this.mesh = new THREE.Group();
         this.mesh.visible = false;
@@ -66,6 +67,10 @@ export class ModularCharacter {
         this.cameraController.enabled = false;
 
         this.setupCombatInput();
+        window.addEventListener('difficulty-settings-changed', (e) => {
+            const map = { low: 1.3, medium: 1, high: 0.85, ultra: 0.7 };
+            this.damageTakenMultiplier = map[e.detail.playerSurvivability] || 1;
+        });
         this.load();
     }
 
@@ -188,21 +193,36 @@ export class ModularCharacter {
             this.inventorySword.visible = true;
         };
 
-        fbxLoader.load(
-            'assets/tripo_convert_a0821ddd-4716-4fa9-bf89-600e19140c5b.fbx',
-            (fbx) => addSword(fbx),
+        gltfLoader.load(
+            'assets/medieval sword 3d model.glb',
+            (gltf) => addSword(cloneSkeleton(gltf.scene)),
             undefined,
             () => {
                 fbxLoader.load(
-                    'assets/tripo_convert_a97dfcab-a514-494f-ae17-4a2f4b0d5715.fbx',
+                    'assets/tripo_convert_a0821ddd-4716-4fa9-bf89-600e19140c5b.fbx',
                     (fbx) => addSword(fbx),
                     undefined,
                     () => {
-                        gltfLoader.load('assets/金色长剑3d模型.glb', (gltf) => addSword(cloneSkeleton(gltf.scene)));
+                        fbxLoader.load(
+                            'assets/tripo_convert_a97dfcab-a514-494f-ae17-4a2f4b0d5715.fbx',
+                            (fbx) => addSword(fbx),
+                            undefined,
+                            () => {
+                                gltfLoader.load('assets/金色长剑3d模型.glb', (gltf) => addSword(cloneSkeleton(gltf.scene)));
+                            }
+                        );
                     }
                 );
             }
         );
+    }
+
+    applyQualitySettings(settings) {
+        this.mesh.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = settings.graphicsPreset !== 'low';
+            child.receiveShadow = settings.graphicsPreset !== 'low';
+        });
     }
 
     setSpawnPoint(spawnPoint) {
@@ -252,7 +272,7 @@ export class ModularCharacter {
             amount = Math.max(1, Math.floor(amount * 0.2));
         }
 
-        this.health -= amount;
+        this.health -= Math.round(amount * this.damageTakenMultiplier);
         window.dispatchEvent(new CustomEvent('player-health-changed', { detail: { health: this.health, maxHealth: this.maxHealth } }));
 
         if (this.health <= 0) {

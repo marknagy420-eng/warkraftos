@@ -35,6 +35,13 @@ export class CharacterManager {
         }));
     }
 
+
+    applyQualitySettings(settings) {
+        for (const [, character] of this.characters) {
+            character.applyQualitySettings?.(settings);
+        }
+    }
+
     update(deltaTime, world) {
         for (const [id, character] of this.characters) {
             character.update(deltaTime, world, id === this.activeCharacterId);
