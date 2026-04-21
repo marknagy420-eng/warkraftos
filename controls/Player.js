@@ -24,8 +24,8 @@ export class Player {
         this.sword = null;
         this.swordHand = null;
         this.swordIdlePose = {
-            position: new THREE.Vector3(0.03, -0.02, -0.01),
-            rotation: new THREE.Euler(Math.PI, -Math.PI / 2, -Math.PI / 4, 'XYZ')
+            position: new THREE.Vector3(-0.4, -0.1, 0.14),
+            rotation: new THREE.Euler(Math.PI, -Math.PI / 2, -Math.PI / 1.5, 'XYZ')
         };
         this.swordSwingPose = {
             position: new THREE.Vector3(0.2, -0.12, -0.26),
