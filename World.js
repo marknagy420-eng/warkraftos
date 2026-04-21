@@ -31,6 +31,10 @@ export class World {
         this.gridSize = 20; 
         this.spatialGrid = new Map();
 
+        this.loadingManager = new THREE.LoadingManager();
+        this.modelLoader = new GLTFLoader(this.loadingManager);
+        this.textureLoader = new THREE.TextureLoader(this.loadingManager);
+
         this.setupLights();
         this.setupGround();
         this.setupSky();
@@ -64,7 +68,7 @@ export class World {
     }
 
     loadModels() {
-        const loader = new GLTFLoader();
+        const loader = this.modelLoader;
         
         // Load Tree Model
         loader.load('assets/twisted tree 3d model (1).glb', (gltf) => {
@@ -150,7 +154,7 @@ export class World {
         this.settings = { ...this.settings, ...settings };
         const qualityMap = { low: 0.8, medium: 0.9, high: 1, ultra: 1.25 };
         const textureAniso = { low: 1, medium: 2, high: 4, ultra: 8 };
-        const shadowMapSize = { low: 512, medium: 1024, high: 1536, ultra: 2048 };
+        const shadowMapSize = { low: 512, medium: 768, high: 1024, ultra: 1536 };
         const scalar = qualityMap[this.settings.textureQuality] || 1;
         this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0022 / scalar);
         if (this.terrain?.material?.map) {
@@ -159,6 +163,7 @@ export class World {
         }
         if (this.directionalLight) {
             const size = shadowMapSize[this.settings.graphicsPreset] || 1024;
+            this.directionalLight.castShadow = this.settings.graphicsPreset !== 'low';
             if (this.directionalLight.shadow.mapSize.width !== size) {
                 this.directionalLight.shadow.mapSize.set(size, size);
                 this.directionalLight.shadow.needsUpdate = true;
@@ -193,10 +198,11 @@ export class World {
     }
 
     setupGround() {
-        const textureLoader = new THREE.TextureLoader();
-        const groundTexture = textureLoader.load('assets/fold.jpg');
+        const groundTexture = this.textureLoader.load('assets/fold.jpg');
         groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
         groundTexture.repeat.set(100, 100);
+        groundTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        groundTexture.magFilter = THREE.LinearFilter;
 
         // Balanced resolution for terrain performance
         const size = CONFIG.WORLD.SIZE;
@@ -244,8 +250,11 @@ export class World {
         // Add cloud billboards from texture
         this.clouds = new THREE.Group();
         this.scene.add(this.clouds);
-        const cloudTexture = new THREE.TextureLoader().load('assets/Clouds-Transparent-Image-1.png');
-        for (let i = 0; i < 60; i++) {
+        const cloudTexture = this.textureLoader.load('assets/Clouds-Transparent-Image-1.png');
+        cloudTexture.generateMipmaps = false;
+        cloudTexture.minFilter = THREE.LinearFilter;
+        const cloudCount = this.settings.graphicsPreset === "low" ? 20 : this.settings.graphicsPreset === "medium" ? 35 : 50;
+        for (let i = 0; i < cloudCount; i++) {
             const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
                 map: cloudTexture,
                 transparent: true,
@@ -350,8 +359,9 @@ export class World {
 
         hut.traverse(child => {
             if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+                const highShadows = this.settings.graphicsPreset === 'ultra' || this.settings.graphicsPreset === 'high';
+                child.castShadow = highShadows;
+                child.receiveShadow = highShadows;
             }
         });
 
@@ -426,8 +436,9 @@ export class World {
 
         tree.traverse((child) => {
             if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+                const highShadows = this.settings.graphicsPreset === 'ultra' || this.settings.graphicsPreset === 'high';
+                child.castShadow = highShadows;
+                child.receiveShadow = highShadows;
             }
         });
 
@@ -482,7 +493,8 @@ export class World {
         grassMesh.geometry.computeBoundingBox();
         const minY = grassMesh.geometry.boundingBox.min.y;
 
-        const count = 7000; // Balanced count for high performance
+        const grassByPreset = { low: 1600, medium: 3000, high: 4800, ultra: 6200 };
+        const count = grassByPreset[this.settings.graphicsPreset] || 3000;
         const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
         instancedMesh.receiveShadow = false; // Disable grass shadows for major FPS boost
         instancedMesh.castShadow = false;

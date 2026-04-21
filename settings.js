@@ -106,7 +106,16 @@ export class GameSettingsStore {
             return null;
         }
     }
+
+    clearAll() {
+        try {
+            localStorage.removeItem(this.storageKey);
+            localStorage.removeItem('warkraftos.savegame.v1');
+        } catch {}
+        this.settings = { ...DEFAULT_SETTINGS };
+    }
 }
+
 
 export function t(language, key) {
     const pack = TRANSLATIONS[language] || TRANSLATIONS.en;

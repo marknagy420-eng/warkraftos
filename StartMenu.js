@@ -16,14 +16,12 @@ const CHARACTER_OPTIONS = [
 ];
 
 export class StartMenu {
-    constructor({ settings, hasSave, gpuInfo, onApplySettings, onStart }) {
+    constructor({ settings, gpuInfo, onApplySettings, onStart }) {
         this.settings = { ...DEFAULT_SETTINGS, ...settings };
-        this.hasSave = hasSave;
         this.gpuInfo = gpuInfo;
         this.onApplySettings = onApplySettings;
         this.onStart = onStart;
         this.selectedCharacter = 'fbx-warrior';
-        this.mode = hasSave ? 'continue' : 'new';
 
         this.build();
         this.renderLanguage();
@@ -80,20 +78,6 @@ export class StartMenu {
         this.info.style.opacity = '0.88';
         this.info.textContent = this.gpuInfo?.text || 'GPU info unavailable';
 
-        this.modeWrap = document.createElement('div');
-        this.modeWrap.style.display = 'flex';
-        this.modeWrap.style.gap = '8px';
-        this.newBtn = this.makeButton('', () => {
-            this.mode = 'new';
-            this.paintModes();
-        });
-        this.continueBtn = this.makeButton('', () => {
-            if (!this.hasSave) return;
-            this.mode = 'continue';
-            this.paintModes();
-        });
-        this.modeWrap.append(this.newBtn, this.continueBtn);
-
         const charsTitle = document.createElement('h3');
         charsTitle.style.margin = '6px 0';
         charsTitle.textContent = t(this.settings.language, 'characterSelect');
@@ -123,14 +107,13 @@ export class StartMenu {
         });
 
         this.startBtn = this.makeButton('', () => {
-            this.onStart({ mode: this.mode, characterId: this.selectedCharacter });
+            this.onStart({ characterId: this.selectedCharacter });
             this.destroy();
         });
         this.startBtn.style.fontSize = '16px';
         this.startBtn.style.padding = '12px 16px';
 
-        this.left.append(this.title, this.info, this.modeWrap, charsTitle, this.charactersGrid, this.startBtn);
-        this.paintModes();
+        this.left.append(this.title, this.info, charsTitle, this.charactersGrid, this.startBtn);
         this.paintCharacterCards();
     }
 
@@ -248,27 +231,25 @@ export class StartMenu {
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.gap = '8px';
-        const saveBtn = this.makeButton('', () => this.fireApply(true));
         const resetBtn = this.makeButton('', () => {
             this.settings = { ...DEFAULT_SETTINGS, language: this.settings.language };
+            this.fireApply();
             this.destroy();
             new StartMenu({
                 settings: this.settings,
-                hasSave: this.hasSave,
                 gpuInfo: this.gpuInfo,
                 onApplySettings: this.onApplySettings,
                 onStart: this.onStart
             });
         });
-        this.saveBtn = saveBtn;
         this.resetBtn = resetBtn;
-        actions.append(saveBtn, resetBtn);
+        actions.append(resetBtn);
 
         this.right.append(this.row('Language', this.langSelect), graphics, audio, gameplay, actions);
     }
 
-    fireApply(forceSave = false) {
-        this.onApplySettings?.(this.settings, { forceSave });
+    fireApply() {
+        this.onApplySettings?.(this.settings);
     }
 
     row(label, control) {
@@ -316,12 +297,6 @@ export class StartMenu {
         return btn;
     }
 
-    paintModes() {
-        this.newBtn.style.opacity = this.mode === 'new' ? '1' : '0.65';
-        this.continueBtn.style.opacity = this.mode === 'continue' ? '1' : '0.65';
-        this.continueBtn.disabled = !this.hasSave;
-    }
-
     paintCharacterCards() {
         CHARACTER_OPTIONS.forEach((char) => {
             char.card.style.border = this.selectedCharacter === char.id ? '2px solid #9cc0ff' : '1px solid #6173b0';
@@ -331,10 +306,7 @@ export class StartMenu {
 
     renderLanguage() {
         this.title.textContent = t(this.settings.language, 'title');
-        this.newBtn.textContent = t(this.settings.language, 'newGame');
-        this.continueBtn.textContent = t(this.settings.language, 'continueGame');
         this.startBtn.textContent = t(this.settings.language, 'start');
-        this.saveBtn.textContent = t(this.settings.language, 'saveSettings');
         this.resetBtn.textContent = t(this.settings.language, 'resetSettings');
     }
 
