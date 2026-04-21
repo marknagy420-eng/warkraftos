@@ -7,7 +7,8 @@ import { DeerNPC } from './DeerNPC.js';
 import { getRandomPosition } from './utils.js';
 
 export class World {
-    constructor(scene) {
+    constructor(scene, settings = {}) {
+        this.settings = settings;
         this.scene = scene;
         this.enemies = [];
         this.chests = [];
@@ -34,6 +35,7 @@ export class World {
         this.setupGround();
         this.setupSky();
         this.loadModels();
+        this.applyQualitySettings(this.settings);
     }
 
     addToGrid(obj, type) {
@@ -143,6 +145,19 @@ export class World {
         );
     }
 
+
+    applyQualitySettings(settings) {
+        this.settings = { ...this.settings, ...settings };
+        const qualityMap = { low: 0.8, medium: 0.9, high: 1, ultra: 1.25 };
+        const textureAniso = { low: 1, medium: 2, high: 4, ultra: 8 };
+        const scalar = qualityMap[this.settings.textureQuality] || 1;
+        this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0022 / scalar);
+        if (this.terrain?.material?.map) {
+            this.terrain.material.map.anisotropy = textureAniso[this.settings.textureQuality] || 4;
+            this.terrain.material.needsUpdate = true;
+        }
+        this.enemies.forEach((enemy) => enemy.applyQualitySettings?.(this.settings));
+    }
 
     setupLights() {
         const ambient = new THREE.AmbientLight(0xffffff, 0.45);
@@ -543,6 +558,8 @@ export class World {
                 const pos = campPos.clone().add(offset);
                 pos.y = this.getTerrainHeight(pos.x, pos.z);
                 const enemy = new Enemy(this.scene, 'GOBLIN', pos, this.goblinGltf);
+                enemy.applyQualitySettings?.(this.settings);
+                enemy.applyDifficultySettings?.(this.settings);
                 this.enemies.push(enemy);
             }
         }

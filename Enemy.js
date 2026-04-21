@@ -15,7 +15,8 @@ export class Enemy {
     constructor(scene, type, position, gltf = null) {
         this.scene = scene;
         this.type = type;
-        this.config = CONFIG.ENEMY[type];
+        this.baseConfig = { ...CONFIG.ENEMY[type] };
+        this.config = { ...this.baseConfig };
         this.health = this.config.HEALTH;
         this.maxHealth = this.config.HEALTH;
         this.lastAttackTime = 0;
@@ -121,6 +122,26 @@ export class Enemy {
 
         this.target = null;
         this.homePosition = position.clone();
+
+        window.addEventListener('difficulty-settings-changed', (e) => this.applyDifficultySettings(e.detail));
+    }
+
+    applyQualitySettings(settings) {
+        if (!this.model) return;
+        const low = settings.enemyQuality === 'low';
+        this.model.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = !low;
+            child.receiveShadow = !low;
+            child.frustumCulled = !low;
+        });
+    }
+
+    applyDifficultySettings(settings) {
+        const map = { low: 0.7, medium: 1, high: 1.2, ultra: 1.5 };
+        this.config.DAMAGE = Math.round(this.baseConfig.DAMAGE * (map[settings.enemyDamage] || 1));
+        this.config.MOVE_SPEED = this.baseConfig.MOVE_SPEED * (map[settings.enemyAggression] || 1);
+        this.config.DETECTION_RANGE = this.baseConfig.DETECTION_RANGE * (map[settings.enemyAggression] || 1);
     }
 
     crossFadeTo(newState) {

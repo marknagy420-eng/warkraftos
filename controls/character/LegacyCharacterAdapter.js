@@ -12,6 +12,8 @@ export class LegacyCharacterAdapter {
         }
     }
 
+    applyQualitySettings(_settings) {}
+
     update(deltaTime, world, isActive) {
         if (!isActive) return;
         this.player.update(deltaTime, world);

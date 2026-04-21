@@ -2,7 +2,8 @@ import { CONFIG } from './config.js';
 import { QUESTS } from './quests.js';
 
 export class UI {
-    constructor() {
+    constructor(language = 'en') {
+        this.language = language;
         this.setupHTML();
         this.setupListeners();
     }
@@ -63,6 +64,7 @@ export class UI {
         prompt.style.textShadow = '2px 2px #000';
         prompt.style.pointerEvents = 'none';
         prompt.innerHTML = 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
+        this.prompt = prompt;
         document.body.appendChild(prompt);
 
         const inventory = document.createElement('div');
@@ -133,6 +135,15 @@ export class UI {
         window.addEventListener('weapon-changed', (e) => {
             const { equipped } = e.detail;
             this.weaponSlot.textContent = equipped ? 'Weapon Slot: Golden Sword (equipped)' : 'Weapon Slot: Empty';
+        });
+
+        window.addEventListener('language-changed', (e) => {
+            this.language = e.detail.language;
+            const textMap = {
+                hu: 'WASD mozgás | Shift futás | C guggolás | Space ugrás | I inventory | 1 kard | Bal klikk támadás | M térkép',
+                en: 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map'
+            };
+            this.prompt.textContent = textMap[this.language] || textMap.en;
         });
     }
 
