@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { Player } from './controls/Player.js';
+import { CharacterManager } from './controls/character/CharacterManager.js';
+import { CharacterSelectionMenu } from './controls/character/CharacterSelectionMenu.js';
+import { LegacyCharacterAdapter } from './controls/character/LegacyCharacterAdapter.js';
+import { ModularCharacter } from './controls/character/ModularCharacter.js';
 import { World } from './World.js';
 import { UI } from './UI.js';
 import { CONFIG } from './config.js';
@@ -24,6 +28,8 @@ class Game {
 
         this.ui = null;
         this.player = null;
+        this.characterManager = null;
+        this.characterMenu = null;
         this.world = null;
         this.isStarted = false;
         this.mapVisible = false;
@@ -83,6 +89,14 @@ class Game {
         this.ui = new UI();
         this.player = new Player(this.scene, this.camera, this.renderer.domElement);
         this.world = new World(this.scene);
+
+        this.characterManager = new CharacterManager();
+        this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: true });
+        this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: false });
+
+        this.characterMenu = new CharacterSelectionMenu(this.characterManager);
+        this.characterMenu.render();
+
         this.isStarted = true;
     }
 
@@ -150,10 +164,11 @@ class Game {
     }
 
     updateMapPlayerMarker() {
-        if (!this.player || !this.mapPlayerDot) return;
+        const active = this.characterManager?.getActiveCharacter();
+        if (!active || !this.mapPlayerDot) return;
         const worldRadius = 150;
-        const px = Math.max(-worldRadius, Math.min(worldRadius, this.player.mesh.position.x));
-        const pz = Math.max(-worldRadius, Math.min(worldRadius, this.player.mesh.position.z));
+        const px = Math.max(-worldRadius, Math.min(worldRadius, active.mesh.position.x));
+        const pz = Math.max(-worldRadius, Math.min(worldRadius, active.mesh.position.z));
         const left = (px / (worldRadius * 2) + 0.5) * 100;
         const top = (pz / (worldRadius * 2) + 0.5) * 100;
         this.mapPlayerDot.style.left = `${left}%`;
@@ -177,8 +192,10 @@ class Game {
 
         // Simple Combat System
         window.addEventListener('player-attack', (e) => {
-            if (!this.player || !this.world) return;
-            const { player } = e.detail;
+            if (!this.characterManager || !this.world) return;
+            const activeCharacter = this.characterManager.getActiveCharacter();
+            if (!activeCharacter) return;
+            const player = activeCharacter.player || activeCharacter;
             
             // Get camera forward direction to determine attack arc
             const camForward = new THREE.Vector3(0, 0, -1);
@@ -239,9 +256,13 @@ class Game {
         
         const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1); // keep movement responsive
 
-        if (this.isStarted && this.player && this.world) {
-            this.player.update(deltaTime, this.world);
-            this.world.update(deltaTime, this.player);
+        if (this.isStarted && this.characterManager && this.world) {
+            this.characterManager.update(deltaTime, this.world);
+            const activeCharacter = this.characterManager.getActiveCharacter();
+            if (activeCharacter) {
+                const playerLike = activeCharacter.player || activeCharacter;
+                this.world.update(deltaTime, playerLike);
+            }
             this.updateMapPlayerMarker();
         }
         
