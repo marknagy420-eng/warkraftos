@@ -62,7 +62,7 @@ export class UI {
         prompt.style.fontSize = '24px';
         prompt.style.textShadow = '2px 2px #000';
         prompt.style.pointerEvents = 'none';
-        prompt.innerHTML = 'WASD Move | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
+        prompt.innerHTML = 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
         document.body.appendChild(prompt);
 
         const inventory = document.createElement('div');

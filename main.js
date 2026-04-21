@@ -63,7 +63,7 @@ class Game {
         const info = document.createElement('div');
         info.style.fontSize = '14px';
         info.style.opacity = '0.85';
-        info.textContent = 'W = támadás + előre | M = térkép | Egér görgő = zoom';
+        info.textContent = 'WASD mozgás | Shift futás | C guggolás | Space ugrás | M térkép | Egér görgő = zoom';
 
         const startButton = document.createElement('button');
         startButton.textContent = 'Belépés a játékba';
@@ -91,8 +91,8 @@ class Game {
         this.world = new World(this.scene);
 
         this.characterManager = new CharacterManager();
-        this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: true });
-        this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: false });
+        this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: true });
+        this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: false });
 
         this.characterMenu = new CharacterSelectionMenu(this.characterManager);
         this.characterMenu.render();
