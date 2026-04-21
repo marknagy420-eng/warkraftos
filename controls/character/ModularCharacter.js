@@ -46,9 +46,29 @@ export class ModularCharacter {
         this.load();
     }
 
+    getRequiredAnimationFileNames() {
+        return {
+            Idle: 'medieval+warrior+3d+model_Clone1@Standing Idle.fbx',
+            Walk: 'medieval+warrior+3d+model_Clone1@Walking.fbx',
+            Run: 'medieval+warrior+3d+model_Clone1@Fast Run.fbx',
+            Jump: 'medieval+warrior+3d+model_Clone1@Jumping.fbx',
+            Crouch: 'medieval+warrior+3d+model_Clone1@Crouching.fbx'
+        };
+    }
+
+    validateAnimationSet() {
+        const required = this.getRequiredAnimationFileNames();
+        for (const [state, fileName] of Object.entries(required)) {
+            if (!ANIMATION_FILES[state] || !ANIMATION_FILES[state].endsWith(fileName)) {
+                throw new Error(`[ModularCharacter] Missing required animation file mapping for "${state}" -> "${fileName}".`);
+            }
+        }
+    }
+
     async load() {
         const loader = new FBXLoader();
         try {
+            this.validateAnimationSet();
             const [model, idle, walk, run, jump, crouch] = await Promise.all([
                 loader.loadAsync(MODEL_FILE),
                 loader.loadAsync(ANIMATION_FILES.Idle),

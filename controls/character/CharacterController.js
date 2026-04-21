@@ -82,14 +82,15 @@ export class CharacterController {
             this.mesh.rotation.y += diff * Math.min(1, deltaTime * 15);
         }
 
+        let resolvedState = state;
         const jumpAction = this.animationController.actions.get('Jump');
         if (this.stateMachine.isJumpLocked && jumpAction && jumpAction.time >= jumpAction.getClip().duration - 0.03) {
-            this.stateMachine.notifyJumpFinished();
+            resolvedState = this.stateMachine.notifyJumpFinished();
         }
 
-        if (state !== this.lastState) {
-            this.animationController.Play(state);
-            this.lastState = state;
+        if (resolvedState !== this.lastState) {
+            this.animationController.Play(resolvedState);
+            this.lastState = resolvedState;
         }
 
         this.animationController.update(deltaTime);
