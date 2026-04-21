@@ -15,12 +15,16 @@ export class World {
         this.trees = [];
         this.goblinGltf = null;
         this.treeGltf = null;
+        this.twistedTreeGltf = null;
         this.hutGltf = null;
         this.grassGltf = null;
         this.deerGltf = null;
         this.deerNpcs = [];
         this.ruinsGltf = null;
         this.wallColliders = [];
+        this.pathTreeMarkers = [];
+        this.hutMarkers = [];
+        this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
         
         // Spatial Database (Grid) for performance optimization
         this.gridSize = 20; 
@@ -61,12 +65,18 @@ export class World {
         const loader = new GLTFLoader();
         
         // Load Tree Model
-        loader.load('assets/stylizedgeometrictree3dmodel.glb', (gltf) => {
-            this.treeGltf = gltf;
+        loader.load('assets/twisted tree 3d model (1).glb', (gltf) => {
+            this.twistedTreeGltf = gltf;
+            this.treeGltf = this.treeGltf || gltf;
             this.setupEnvironment();
-        }, undefined, (error) => {
-            console.error('Error loading tree model:', error);
-            this.setupEnvironment();
+        }, undefined, () => {
+            loader.load('assets/stylizedgeometrictree3dmodel.glb', (gltf) => {
+                this.treeGltf = gltf;
+                this.setupEnvironment();
+            }, undefined, (error) => {
+                console.error('Error loading tree model:', error);
+                this.setupEnvironment();
+            });
         });
 
         // Load Grass Model
@@ -115,7 +125,8 @@ export class World {
 
         loader.load('assets/ancient ruins 3d model.glb', (gltf) => {
             this.ruinsGltf = gltf;
-            this.createAncientRuins(new THREE.Vector3(0, 0, 0));
+            this.createAncientRuins(this.ruinsPosition.clone());
+            this.setupRuinsPathTrees();
         });
 
         // Load passive Deer NPC model
@@ -134,10 +145,10 @@ export class World {
 
 
     setupLights() {
-        const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.45);
         this.scene.add(ambient);
         
-        const directional = new THREE.DirectionalLight(0xffffff, 1.2);
+        const directional = new THREE.DirectionalLight(0xffffff, 1.65);
         directional.position.set(100, 200, 100);
         directional.castShadow = true;
         directional.shadow.mapSize.width = 2048;
@@ -150,7 +161,7 @@ export class World {
         directional.shadow.camera.far = 700;
         directional.shadow.bias = -0.00015;
         directional.shadow.normalBias = 0.02;
-        directional.shadow.radius = 2;
+        directional.shadow.radius = 1.2;
         this.scene.add(directional);
 
         // Fog for atmosphere and performance (draw distance feel)
@@ -238,8 +249,12 @@ export class World {
     }
 
     setupEnvironment() {
-        if (this.treeGltf) {
+        if (this.treeGltf || this.twistedTreeGltf) {
             this.setupInstancedTrees();
+        }
+
+        if (this.pathTreeMarkers.length === 0 && this.ruinsGltf) {
+            this.setupRuinsPathTrees();
         }
 
         // Add Treasure chests
@@ -254,7 +269,7 @@ export class World {
     }
 
     setupInstancedTrees() {
-        const treeScene = this.treeGltf.scene;
+        const treeScene = (this.twistedTreeGltf || this.treeGltf).scene;
         let treeMesh = null;
         treeScene.traverse(child => {
             if (child.isMesh && !treeMesh) treeMesh = child;
@@ -317,7 +332,8 @@ export class World {
         });
 
         this.scene.add(hut);
-        
+        this.hutMarkers.push(new THREE.Vector3(pos.x, terrainH, pos.z));
+
         // Add to database
         const hutData = {
             position: new THREE.Vector3(pos.x, terrainH, pos.z),
@@ -352,6 +368,62 @@ export class World {
         this.addRuinsWallColliders(ruins);
     }
 
+
+    setupRuinsPathTrees() {
+        const source = this.twistedTreeGltf || this.treeGltf;
+        if (!source?.scene) return;
+
+        const startX = this.ruinsPosition.x + 40;
+        const endX = this.ruinsPosition.x + 320;
+        const rowOffset = 14;
+        const step = 12;
+
+        for (let x = startX; x <= endX; x += step) {
+            this.spawnPathTree(new THREE.Vector3(x, 0, -rowOffset));
+            this.spawnPathTree(new THREE.Vector3(x, 0, rowOffset));
+        }
+    }
+
+    spawnPathTree(pos) {
+        const source = this.twistedTreeGltf || this.treeGltf;
+        if (!source?.scene) return;
+
+        const tree = cloneSkeleton(source.scene);
+        const terrainH = this.getTerrainHeight(pos.x, pos.z);
+        const s = 7 + Math.random() * 3;
+
+        tree.scale.setScalar(s);
+        tree.position.set(pos.x, terrainH, pos.z);
+        tree.rotation.y = Math.random() * Math.PI * 2;
+
+        tree.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(tree);
+        tree.position.y -= box.min.y - terrainH;
+
+        tree.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        this.scene.add(tree);
+        this.pathTreeMarkers.push(new THREE.Vector3(pos.x, terrainH, pos.z));
+        this.addToGrid({ position: new THREE.Vector3(pos.x, terrainH, pos.z), radius: 2.4 }, 'TREE');
+    }
+
+    getPlayerSpawnPoint() {
+        const terrainH = this.getTerrainHeight(this.ruinsPosition.x, this.ruinsPosition.z);
+        return new THREE.Vector3(this.ruinsPosition.x + 8, terrainH, this.ruinsPosition.z + 4);
+    }
+
+    getMapPoints() {
+        return {
+            ruins: this.ruinsPosition.clone(),
+            huts: this.hutMarkers.map((h) => h.clone()),
+            pathTrees: this.pathTreeMarkers.map((t) => t.clone())
+        };
+    }
     addRuinsWallColliders(ruins) {
         ruins.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(ruins);
