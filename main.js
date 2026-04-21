@@ -16,16 +16,16 @@ class Game {
     constructor() {
         this.scene = new THREE.Scene();
         this.settingsStore = new GameSettingsStore();
-        this.settings = { ...DEFAULT_SETTINGS, ...this.settingsStore.get() };
-        this.savedGameState = this.settingsStore.loadGameState();
+        this.settingsStore.clearAll();
+        this.settings = { ...DEFAULT_SETTINGS };
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
         this.renderer = this.buildRenderer();
         this.currentPixelRatio = 1;
         this.dynamicResolution = {
             enabled: true,
-            min: 0.62,
-            max: 1.7,
+            min: 0.5,
+            max: 1.35,
             targetFrameMs: 16.7,
             frameMs: 16.7,
             cooldown: 0
@@ -68,18 +68,16 @@ class Game {
         const gpuInfo = await this.detectGPU();
         this.startMenu = new StartMenu({
             settings: this.settings,
-            hasSave: !!this.savedGameState,
             gpuInfo,
             onApplySettings: (nextSettings) => {
-                this.settings = this.settingsStore.save(nextSettings);
+                this.settings = { ...DEFAULT_SETTINGS, ...nextSettings };
                 this.applyGraphicsSettings(this.settings);
                 this.applyAudioSettings(this.settings);
                 this.applyLanguage(this.settings.language);
                 this.applyDifficulty(this.settings);
             },
-            onStart: ({ mode, characterId }) => {
-                if (mode === 'new') this.settingsStore.clearSaves();
-                this.startGame({ mode, characterId });
+            onStart: ({ characterId }) => {
+                this.startGame({ characterId });
             }
         });
         this.applyLanguage(this.settings.language);
@@ -113,9 +111,9 @@ class Game {
         if (!settings.nativeResolution) pixelRatio *= 0.8;
         if (settings.dlss) pixelRatio *= 0.85;
 
-        this.currentPixelRatio = Math.max(0.5, Math.min(pixelRatio, 1.7));
+        this.currentPixelRatio = Math.max(0.5, Math.min(pixelRatio, 1.35));
         this.dynamicResolution.max = this.currentPixelRatio;
-        this.dynamicResolution.enabled = settings.graphicsPreset === 'high' || settings.graphicsPreset === 'ultra';
+        this.dynamicResolution.enabled = settings.graphicsPreset !== 'low';
         this.renderer.setPixelRatio(this.currentPixelRatio);
         this.renderer.shadowMap.enabled = settings.graphicsPreset !== 'low';
         this.renderer.shadowMap.type = settings.graphicsPreset === 'ultra' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
@@ -141,7 +139,7 @@ class Game {
         window.dispatchEvent(new CustomEvent('difficulty-settings-changed', { detail: settings }));
     }
 
-    startGame({ mode = 'new', characterId = 'fbx-warrior' } = {}) {
+    startGame({ characterId = 'fbx-warrior' } = {}) {
         if (this.isStarted) return;
         this.ui = new UI(this.settings.language);
         this.player = new Player(this.scene, this.camera, this.renderer.domElement);
@@ -159,14 +157,6 @@ class Game {
             modular?.setSpawnPoint?.(spawn);
         }
 
-        if (mode === 'continue' && this.savedGameState?.position) {
-            const activeCharacter = this.characterManager.getActiveCharacter();
-            activeCharacter?.mesh?.position?.set(
-                this.savedGameState.position.x,
-                this.savedGameState.position.y,
-                this.savedGameState.position.z
-            );
-        }
 
         this.characterMenu = new CharacterSelectionMenu(this.characterManager, this.settings.language);
         this.characterMenu.render();
@@ -276,20 +266,6 @@ class Game {
     }
 
     setupEventListeners() {
-        window.addEventListener('beforeunload', () => {
-            const activeCharacter = this.characterManager?.getActiveCharacter();
-            if (activeCharacter?.mesh?.position) {
-                this.settingsStore.saveGameState({
-                    position: {
-                        x: activeCharacter.mesh.position.x,
-                        y: activeCharacter.mesh.position.y,
-                        z: activeCharacter.mesh.position.z
-                    },
-                    timestamp: Date.now()
-                });
-            }
-        });
-
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
@@ -373,10 +349,10 @@ class Game {
             if (this.dynamicResolution.cooldown >= 0.45) {
                 this.dynamicResolution.cooldown = 0;
                 let nextRatio = this.currentPixelRatio;
-                const lowFps = this.dynamicResolution.frameMs > 21.5;
-                const recovered = this.dynamicResolution.frameMs < 15.8;
-                if (lowFps) nextRatio -= 0.06;
-                else if (recovered) nextRatio += 0.04;
+                const lowFps = this.dynamicResolution.frameMs > 19.8;
+                const recovered = this.dynamicResolution.frameMs < 14.9;
+                if (lowFps) nextRatio -= 0.08;
+                else if (recovered) nextRatio += 0.03;
                 nextRatio = THREE.MathUtils.clamp(nextRatio, this.dynamicResolution.min, this.dynamicResolution.max);
                 if (Math.abs(nextRatio - this.currentPixelRatio) >= 0.02) {
                     this.currentPixelRatio = nextRatio;
@@ -384,6 +360,8 @@ class Game {
                 }
             }
         }
+
+        if (document.hidden) return;
 
         if (this.isStarted && this.characterManager && this.world) {
             this.characterManager.update(deltaTime, this.world);
