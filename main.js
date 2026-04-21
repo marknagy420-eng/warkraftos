@@ -21,10 +21,6 @@ class Game {
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
         this.renderer = this.buildRenderer();
-        this.applyGraphicsSettings(this.settings);
-        document.body.appendChild(this.renderer.domElement);
-
-        this.clock = new THREE.Clock();
         this.currentPixelRatio = 1;
         this.dynamicResolution = {
             enabled: true,
@@ -34,6 +30,10 @@ class Game {
             frameMs: 16.7,
             cooldown: 0
         };
+        this.applyGraphicsSettings(this.settings);
+        document.body.appendChild(this.renderer.domElement);
+
+        this.clock = new THREE.Clock();
         this.ui = null;
         this.player = null;
         this.characterManager = null;
