@@ -172,6 +172,11 @@ export class World {
         this.enemies.forEach((enemy) => enemy.applyQualitySettings?.(this.settings));
     }
 
+    applyDifficultySettings(settings) {
+        this.settings = { ...this.settings, ...settings };
+        this.enemies.forEach((enemy) => enemy.applyDifficultySettings?.(this.settings));
+    }
+
     setupLights() {
         const ambient = new THREE.AmbientLight(0xffffff, 0.45);
         this.scene.add(ambient);
