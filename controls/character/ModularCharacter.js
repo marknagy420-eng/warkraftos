@@ -8,6 +8,7 @@ import { AnimationController } from './AnimationController.js';
 import { CONFIG } from '../../config.js';
 
 const MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
+const MODEL_BASE_ROTATION_Y = Math.PI / 2;
 
 const ANIMATION_FILES = {
     Idle: ['assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx'],
@@ -152,6 +153,7 @@ export class ModularCharacter {
             const minY = box.min.y * scale;
             model.scale.setScalar(scale);
             model.position.y -= minY;
+            model.rotation.y = MODEL_BASE_ROTATION_Y;
             this.mesh.add(model);
 
             this.animationController = new AnimationController(model, clipsByName);
