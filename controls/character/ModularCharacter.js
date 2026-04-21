@@ -335,10 +335,12 @@ export class ModularCharacter {
 
     resolveSwordMoveAnimation() {
         const keys = this.controller.keys;
-        if (keys.KeyW) return 'SwordForward';
-        if (keys.KeyS) return 'SwordBackward';
-        if (keys.KeyA) return 'SwordStrafeLeft';
-        if (keys.KeyD) return 'SwordStrafeRight';
+        // Requested remap (controls unchanged):
+        // W -> old A anim, A -> old S anim, S -> old D anim, D -> old W anim.
+        if (keys.KeyW) return 'SwordStrafeLeft';
+        if (keys.KeyA) return 'SwordBackward';
+        if (keys.KeyS) return 'SwordStrafeRight';
+        if (keys.KeyD) return 'SwordForward';
         return 'SwordWalk';
     }
 
