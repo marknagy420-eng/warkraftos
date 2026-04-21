@@ -22,10 +22,10 @@ export const CONFIG = {
     },
     WORLD: {
         SIZE: 1000,
-        TREE_COUNT: 800,
-        TREASURE_COUNT: 50,
-        GOBLIN_CAMP_COUNT: 25,
-        DEER_COUNT: 40,
+        TREE_COUNT: 520,
+        TREASURE_COUNT: 32,
+        GOBLIN_CAMP_COUNT: 16,
+        DEER_COUNT: 24,
     },
     COLORS: {
         UI_HEALTH: '#e74c3c',

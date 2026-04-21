@@ -269,6 +269,16 @@ export class World {
         }
     }
 
+
+    getWorldDensityMultiplier() {
+        const densityByPreset = { low: 0.35, medium: 0.6, high: 0.85, ultra: 1.0 };
+        return densityByPreset[this.settings.graphicsPreset] ?? densityByPreset.high;
+    }
+
+    getScaledWorldCount(baseCount) {
+        return Math.max(0, Math.floor(baseCount * this.getWorldDensityMultiplier()));
+    }
+
     getTerrainHeight(x, z) {
         if (!this.terrain) return 0;
         const d = Math.sqrt(x*x + z*z);
@@ -291,7 +301,8 @@ export class World {
         }
 
         // Add Treasure chests
-        for (let i = 0; i < CONFIG.WORLD.TREASURE_COUNT; i++) {
+        const treasureCount = this.getScaledWorldCount(CONFIG.WORLD.TREASURE_COUNT);
+        for (let i = 0; i < treasureCount; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
             if (pos.length() < 40) {
                 i--;
@@ -313,7 +324,7 @@ export class World {
         treeMesh.geometry.computeBoundingBox();
         const minY = treeMesh.geometry.boundingBox.min.y;
 
-        const count = CONFIG.WORLD.TREE_COUNT;
+        const count = this.getScaledWorldCount(CONFIG.WORLD.TREE_COUNT);
         const instancedMesh = new THREE.InstancedMesh(treeMesh.geometry, treeMesh.material, count);
         instancedMesh.castShadow = true;
         instancedMesh.receiveShadow = true;
@@ -562,7 +573,8 @@ export class World {
     }
 
     setupEnemies() {
-        for (let i = 0; i < CONFIG.WORLD.GOBLIN_CAMP_COUNT; i++) {
+        const campCount = this.getScaledWorldCount(CONFIG.WORLD.GOBLIN_CAMP_COUNT);
+        for (let i = 0; i < campCount; i++) {
             const campPos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
             if (campPos.length() < 40) {
                 i--;
@@ -589,7 +601,8 @@ export class World {
     setupDeerNpcs() {
         if (!this.deerGltf) return;
 
-        for (let i = 0; i < CONFIG.WORLD.DEER_COUNT; i++) {
+        const deerCount = this.getScaledWorldCount(CONFIG.WORLD.DEER_COUNT);
+        for (let i = 0; i < deerCount; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
             if (pos.length() < 30) {
                 i--;
