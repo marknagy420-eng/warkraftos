@@ -333,12 +333,12 @@ export class ModularCharacter {
         keys.Space = this.inputHandler.keys.has('Space');
     }
 
-    resolveSwappedSwordMoveAnimation() {
+    resolveSwordMoveAnimation() {
         const keys = this.controller.keys;
-        if (keys.KeyW) return 'SwordStrafeLeft';
-        if (keys.KeyS) return 'SwordStrafeRight';
-        if (keys.KeyD) return 'SwordForward';
-        if (keys.KeyA) return 'SwordBackward';
+        if (keys.KeyW) return 'SwordForward';
+        if (keys.KeyS) return 'SwordBackward';
+        if (keys.KeyA) return 'SwordStrafeLeft';
+        if (keys.KeyD) return 'SwordStrafeRight';
         return 'SwordWalk';
     }
 
@@ -371,9 +371,9 @@ export class ModularCharacter {
         } else if (!this.controller.isOnGround) {
             this.animationController.Play(this.weaponEquipped ? 'SwordJump' : 'Jump');
         } else if (this.weaponEquipped && hasMove) {
-            const swapped = this.resolveSwappedSwordMoveAnimation();
-            this.animationController.Play(swapped);
-            if (this.animationController.currentAnimation !== swapped) {
+            const swordMoveAnimation = this.resolveSwordMoveAnimation();
+            this.animationController.Play(swordMoveAnimation);
+            if (this.animationController.currentAnimation !== swordMoveAnimation) {
                 this.animationController.Play(running ? 'SwordRun' : 'SwordWalk');
             }
         } else if (hasMove && running) {
