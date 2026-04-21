@@ -7,6 +7,7 @@ export class CharacterStateMachine {
         this.currentState = 'Idle';
         this.stateBeforeJump = 'Idle';
         this.isJumpLocked = false;
+        this.priority = ['Jump', 'Run', 'Walk', 'Crouch', 'Idle'];
     }
 
     evaluate(input) {
@@ -38,6 +39,7 @@ export class CharacterStateMachine {
 
     notifyJumpFinished() {
         this.isJumpLocked = false;
-        return this.stateBeforeJump;
+        this.currentState = this.stateBeforeJump || 'Idle';
+        return this.currentState;
     }
 }
