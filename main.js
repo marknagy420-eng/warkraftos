@@ -34,6 +34,7 @@ class Game {
         this.isStarted = false;
         this.mapVisible = false;
 
+        this.mapStaticMarkers = [];
         this.setupStartMenu();
         this.setupMapOverlay();
         this.setupEventListeners();
@@ -94,8 +95,16 @@ class Game {
         this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: true });
         this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: false });
 
+        const spawn = this.world.getPlayerSpawnPoint?.();
+        if (spawn) {
+            this.player.mesh.position.copy(spawn);
+            const modular = this.characterManager.characters.get('fbx-warrior');
+            modular?.setSpawnPoint?.(spawn);
+        }
+
         this.characterMenu = new CharacterSelectionMenu(this.characterManager);
         this.characterMenu.render();
+        this.rebuildMapStaticMarkers();
 
         this.isStarted = true;
     }
@@ -140,24 +149,6 @@ class Game {
         this.mapPlayerDot.style.border = '2px solid #eafff9';
         this.mapPlayerDot.style.transform = 'translate(-50%, -50%)';
 
-        const hutPositions = [
-            [25, 25], [-25, 25], [25, -25], [-25, -25], [0, 45]
-        ];
-        hutPositions.forEach(([x, z]) => {
-            const marker = document.createElement('div');
-            marker.style.position = 'absolute';
-            marker.style.width = '10px';
-            marker.style.height = '10px';
-            marker.style.background = '#d35400';
-            marker.style.border = '1px solid #ffe7cf';
-            marker.style.transform = 'translate(-50%, -50%)';
-            const nx = (x / 150 + 0.5) * 100;
-            const nz = (z / 150 + 0.5) * 100;
-            marker.style.left = `${nx}%`;
-            marker.style.top = `${nz}%`;
-            map.appendChild(marker);
-        });
-
         map.append(title, this.mapPlayerDot);
         document.body.appendChild(map);
         this.mapElement = map;
@@ -166,13 +157,55 @@ class Game {
     updateMapPlayerMarker() {
         const active = this.characterManager?.getActiveCharacter();
         if (!active || !this.mapPlayerDot) return;
-        const worldRadius = 150;
+        const worldRadius = 500;
         const px = Math.max(-worldRadius, Math.min(worldRadius, active.mesh.position.x));
         const pz = Math.max(-worldRadius, Math.min(worldRadius, active.mesh.position.z));
         const left = (px / (worldRadius * 2) + 0.5) * 100;
         const top = (pz / (worldRadius * 2) + 0.5) * 100;
         this.mapPlayerDot.style.left = `${left}%`;
         this.mapPlayerDot.style.top = `${top}%`;
+    }
+
+
+    toMapPercent(pos, worldRadius = 500) {
+        const x = Math.max(-worldRadius, Math.min(worldRadius, pos.x));
+        const z = Math.max(-worldRadius, Math.min(worldRadius, pos.z));
+        return {
+            left: (x / (worldRadius * 2) + 0.5) * 100,
+            top: (z / (worldRadius * 2) + 0.5) * 100
+        };
+    }
+
+    addMapMarker(x, z, style = {}) {
+        if (!this.mapElement) return;
+        const marker = document.createElement('div');
+        marker.style.position = 'absolute';
+        marker.style.width = style.width || '8px';
+        marker.style.height = style.height || '8px';
+        marker.style.borderRadius = style.borderRadius || '2px';
+        marker.style.background = style.background || '#fff';
+        marker.style.border = style.border || '1px solid #111';
+        marker.style.transform = 'translate(-50%, -50%)';
+
+        const mapPos = this.toMapPercent({ x, z });
+        marker.style.left = `${mapPos.left}%`;
+        marker.style.top = `${mapPos.top}%`;
+        this.mapElement.appendChild(marker);
+        this.mapStaticMarkers.push(marker);
+    }
+
+    rebuildMapStaticMarkers() {
+        this.mapStaticMarkers.forEach((m) => m.remove());
+        this.mapStaticMarkers = [];
+
+        const points = this.world?.getMapPoints?.();
+        if (!points) return;
+
+        this.addMapMarker(points.ruins.x, points.ruins.z, { background: '#7f8c8d', width: '14px', height: '14px', borderRadius: '50%' });
+        points.huts.forEach((h) => this.addMapMarker(h.x, h.z, { background: '#d35400', width: '10px', height: '10px' }));
+        points.pathTrees.forEach((t, i) => {
+            if (i % 2 === 0) this.addMapMarker(t.x, t.z, { background: '#1e8449', width: '6px', height: '6px', borderRadius: '50%' });
+        });
     }
 
     setupEventListeners() {
@@ -187,6 +220,7 @@ class Game {
             if (e.code === 'KeyM') {
                 this.mapVisible = !this.mapVisible;
                 this.mapElement.style.display = this.mapVisible ? 'block' : 'none';
+                if (this.mapVisible) this.rebuildMapStaticMarkers();
             }
         });
 
