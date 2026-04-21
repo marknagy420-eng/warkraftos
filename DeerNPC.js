@@ -16,6 +16,8 @@ export class DeerNPC {
         this.target = null;
         this.modelFacingOffset = Math.PI / 2;
         this.turnSpeed = 1.25 + Math.random() * 0.45;
+        this._tmpToTarget = new THREE.Vector3();
+        this._tmpForward = new THREE.Vector3();
 
         this.model = cloneSkeleton(deerGltf.scene);
         this.model.updateMatrixWorld(true);
@@ -75,9 +77,9 @@ export class DeerNPC {
             this.pickNextTarget();
         }
 
-        const toTarget = new THREE.Vector3().subVectors(this.target, this.mesh.position);
-        toTarget.y = 0;
-        const dist = toTarget.length();
+        this._tmpToTarget.copy(this.target).sub(this.mesh.position);
+        this._tmpToTarget.y = 0;
+        const dist = this._tmpToTarget.length();
 
         if (dist < 0.5) {
             this.target = null;
@@ -87,7 +89,7 @@ export class DeerNPC {
             return;
         }
 
-        const targetRotation = Math.atan2(toTarget.x, toTarget.z) + this.modelFacingOffset;
+        const targetRotation = Math.atan2(this._tmpToTarget.x, this._tmpToTarget.z) + this.modelFacingOffset;
         let diff = targetRotation - this.mesh.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -98,10 +100,10 @@ export class DeerNPC {
 
         // Move only forward along deer facing direction (no side stepping).
         const facingAngle = this.mesh.rotation.y - this.modelFacingOffset;
-        const forward = new THREE.Vector3(Math.sin(facingAngle), 0, Math.cos(facingAngle));
+        this._tmpForward.set(Math.sin(facingAngle), 0, Math.cos(facingAngle));
         const forwardAmount = this.speed * deltaTime;
-        this.mesh.position.x += forward.x * forwardAmount;
-        this.mesh.position.z += forward.z * forwardAmount;
+        this.mesh.position.x += this._tmpForward.x * forwardAmount;
+        this.mesh.position.z += this._tmpForward.z * forwardAmount;
         this.mesh.position.y = this.world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
 
         this.setMovingAnimation(true);
