@@ -15,6 +15,10 @@ export class CharacterController {
         this.gravity = CONFIG.PLAYER.GRAVITY;
 
         this.velocity = new THREE.Vector3();
+        this._forward = new THREE.Vector3();
+        this._right = new THREE.Vector3();
+        this._move = new THREE.Vector3();
+        this._horizontal = new THREE.Vector3();
         this.isOnGround = true;
         this.rotationOffset = -Math.PI / 2;
         this.lastState = null;
@@ -24,25 +28,25 @@ export class CharacterController {
         const input = this.inputHandler.snapshot();
         const state = this.stateMachine.evaluate(input);
 
-        const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYaw);
-        const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraYaw);
+        this._forward.set(0, 0, -1).applyAxisAngle(this._right.set(0, 1, 0), cameraYaw);
+        this._right.set(1, 0, 0).applyAxisAngle(this._horizontal.set(0, 1, 0), cameraYaw);
 
         let moveX = 0;
         let moveZ = 0;
-        if (input.hasW) { moveX += forward.x; moveZ += forward.z; }
-        if (input.hasS) { moveX -= forward.x; moveZ -= forward.z; }
-        if (input.hasA) { moveX -= right.x; moveZ -= right.z; }
-        if (input.hasD) { moveX += right.x; moveZ += right.z; }
+        if (input.hasW) { moveX += this._forward.x; moveZ += this._forward.z; }
+        if (input.hasS) { moveX -= this._forward.x; moveZ -= this._forward.z; }
+        if (input.hasA) { moveX -= this._right.x; moveZ -= this._right.z; }
+        if (input.hasD) { moveX += this._right.x; moveZ += this._right.z; }
 
-        const move = new THREE.Vector3(moveX, 0, moveZ);
-        if (move.lengthSq() > 0) move.normalize();
+        this._move.set(moveX, 0, moveZ);
+        if (this._move.lengthSq() > 0) this._move.normalize();
 
         let moveSpeed = this.walkSpeed;
         if (state === 'Run') moveSpeed = this.runSpeed;
         if (state === 'Crouch') moveSpeed = this.crouchSpeed;
 
-        this.velocity.x = move.x * moveSpeed;
-        this.velocity.z = move.z * moveSpeed;
+        this.velocity.x = this._move.x * moveSpeed;
+        this.velocity.z = this._move.z * moveSpeed;
 
         const ground = world?.getTerrainHeight
             ? world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z)
@@ -73,9 +77,9 @@ export class CharacterController {
             }
         }
 
-        const horizontal = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
-        if (horizontal.lengthSq() > 0.0001) {
-            const targetYaw = Math.atan2(horizontal.x, horizontal.z) + this.rotationOffset;
+        this._horizontal.set(this.velocity.x, 0, this.velocity.z);
+        if (this._horizontal.lengthSq() > 0.0001) {
+            const targetYaw = Math.atan2(this._horizontal.x, this._horizontal.z) + this.rotationOffset;
             let diff = targetYaw - this.mesh.rotation.y;
             while (diff < -Math.PI) diff += Math.PI * 2;
             while (diff > Math.PI) diff -= Math.PI * 2;

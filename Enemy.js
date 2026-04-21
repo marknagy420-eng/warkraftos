@@ -122,6 +122,8 @@ export class Enemy {
 
         this.target = null;
         this.homePosition = position.clone();
+        this._tmpDir = new THREE.Vector3();
+        this._tmpToTarget = new THREE.Vector3();
 
         window.addEventListener('difficulty-settings-changed', (e) => this.applyDifficultySettings(e.detail));
     }
@@ -221,12 +223,15 @@ export class Enemy {
 
             if (distToPlayer > this.config.ATTACK_RANGE) {
                 // Chase → run
-                const dir = new THREE.Vector3(
+                this._tmpToTarget.set(
                     player.mesh.position.x - this.mesh.position.x,
                     0,
                     player.mesh.position.z - this.mesh.position.z
-                ).normalize();
-                this.mesh.position.add(dir.multiplyScalar(this.config.MOVE_SPEED * deltaTime));
+                );
+                if (this._tmpToTarget.lengthSq() > 0) {
+                    this._tmpDir.copy(this._tmpToTarget).normalize();
+                    this.mesh.position.add(this._tmpDir.multiplyScalar(this.config.MOVE_SPEED * deltaTime));
+                }
                 this.setState(STATE.RUN);
             } else {
                 // In range → attack
@@ -249,12 +254,15 @@ export class Enemy {
             const distToHome = distance2D(this.mesh.position, this.homePosition);
             if (distToHome > 1) {
                 this.facePosition(this.homePosition);
-                const dir = new THREE.Vector3(
+                this._tmpToTarget.set(
                     this.homePosition.x - this.mesh.position.x,
                     0,
                     this.homePosition.z - this.mesh.position.z
-                ).normalize();
-                this.mesh.position.add(dir.multiplyScalar(this.config.MOVE_SPEED * deltaTime));
+                );
+                if (this._tmpToTarget.lengthSq() > 0) {
+                    this._tmpDir.copy(this._tmpToTarget).normalize();
+                    this.mesh.position.add(this._tmpDir.multiplyScalar(this.config.MOVE_SPEED * deltaTime));
+                }
                 this.setState(STATE.RUN);
             } else {
                 this.setState(STATE.IDLE);
