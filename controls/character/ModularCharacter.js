@@ -17,7 +17,7 @@ const ANIMATION_FILES = {
     Crouch: ['assets/medieval+warrior+3d+model_Clone1@Crouching.fbx'],
     DrawSword: ['assets/medieval+warrior+3d+model_Clone1@Draw Sword 2.fbx', 'assets/medieval+warrior+3d+model_Clone1@Sheath Sword 1.fbx'],
     SwordIdle: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Idle.fbx', 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx'],
-    SwordWalk: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Walk.fbx', 'assets/medieval+warrior+3d+model_Clone1@Sword And Shield Run.fbx', 'assets/medieval+warrior+3d+model_Clone1@Walking.fbx'],
+    SwordWalk: ['assets/medieval+warrior+3d+model_Clone1@Walking.fbx'],
     SwordRun: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Run.fbx', 'assets/medieval+warrior+3d+model_Clone1@Fast Run.fbx'],
     SwordJump: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Jump.fbx', 'assets/medieval+warrior+3d+model_Clone1@Jumping.fbx'],
     AttackSlash: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Slash.fbx', 'assets/medieval+warrior+3d+model_Clone1@Sword And Shield Attack.fbx'],
@@ -333,17 +333,6 @@ export class ModularCharacter {
         keys.Space = this.inputHandler.keys.has('Space');
     }
 
-    resolveSwordMoveAnimation() {
-        const keys = this.controller.keys;
-        // Requested remap (controls unchanged):
-        // W -> old A anim, A -> old S anim, S -> old D anim, D -> old W anim.
-        if (keys.KeyW) return 'SwordStrafeLeft';
-        if (keys.KeyA) return 'SwordBackward';
-        if (keys.KeyS) return 'SwordStrafeRight';
-        if (keys.KeyD) return 'SwordForward';
-        return 'SwordWalk';
-    }
-
     updateAnimations(deltaTime) {
         if (!this.animationController || !this.controller) return;
 
@@ -373,11 +362,9 @@ export class ModularCharacter {
         } else if (!this.controller.isOnGround) {
             this.animationController.Play(this.weaponEquipped ? 'SwordJump' : 'Jump');
         } else if (this.weaponEquipped && hasMove) {
-            const swordMoveAnimation = this.resolveSwordMoveAnimation();
-            this.animationController.Play(swordMoveAnimation);
-            if (this.animationController.currentAnimation !== swordMoveAnimation) {
-                this.animationController.Play(running ? 'SwordRun' : 'SwordWalk');
-            }
+            // Use the base movement set for WASD while weapon is equipped as well.
+            // This keeps controls unchanged and avoids directional remap animation issues.
+            this.animationController.Play(running ? 'SwordRun' : 'SwordWalk');
         } else if (hasMove && running) {
             this.animationController.Play('Run');
         } else if (hasMove) {
