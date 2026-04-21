@@ -125,7 +125,6 @@ export class Enemy {
         this._tmpDir = new THREE.Vector3();
         this._tmpToTarget = new THREE.Vector3();
 
-        window.addEventListener('difficulty-settings-changed', (e) => this.applyDifficultySettings(e.detail));
     }
 
     applyQualitySettings(settings) {

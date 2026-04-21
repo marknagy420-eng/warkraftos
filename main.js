@@ -136,7 +136,7 @@ class Game {
     }
 
     applyDifficulty(settings) {
-        window.dispatchEvent(new CustomEvent('difficulty-settings-changed', { detail: settings }));
+        this.world?.applyDifficultySettings(settings);
     }
 
     startGame({ characterId = 'fbx-warrior' } = {}) {
