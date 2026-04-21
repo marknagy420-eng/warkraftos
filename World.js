@@ -19,6 +19,8 @@ export class World {
         this.grassGltf = null;
         this.deerGltf = null;
         this.deerNpcs = [];
+        this.ruinsGltf = null;
+        this.wallColliders = [];
         
         // Spatial Database (Grid) for performance optimization
         this.gridSize = 20; 
@@ -111,6 +113,11 @@ export class World {
             this.createHut(new THREE.Vector3(0, 0, 45));
         });
 
+        loader.load('assets/ancient ruins 3d model.glb', (gltf) => {
+            this.ruinsGltf = gltf;
+            this.createAncientRuins(new THREE.Vector3(0, 0, 0));
+        });
+
         // Load passive Deer NPC model
         loader.load(
             'assets/deer+3d+model_Clone1.glb',
@@ -199,20 +206,19 @@ export class World {
         this.sky = new THREE.Mesh(skyGeo, skyMat);
         this.scene.add(this.sky);
 
-        // Add some stylized clouds
+        // Add cloud billboards from texture
         this.clouds = new THREE.Group();
         this.scene.add(this.clouds);
+        const cloudTexture = new THREE.TextureLoader().load('assets/Clouds-Transparent-Image-1.png');
         for (let i = 0; i < 60; i++) {
-            const cloud = new THREE.Group();
-            const count = 3 + Math.floor(Math.random() * 4);
-            for (let j = 0; j < count; j++) {
-                const part = new THREE.Mesh(
-                    new THREE.SphereGeometry(15 + Math.random() * 15, 8, 8),
-                    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
-                );
-                part.position.set(j * 15, Math.random() * 10, Math.random() * 10);
-                cloud.add(part);
-            }
+            const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: cloudTexture,
+                transparent: true,
+                depthWrite: false,
+                opacity: 0.85
+            }));
+            const s = 120 + Math.random() * 150;
+            cloud.scale.set(s, s * 0.55, 1);
             const pos = getRandomPosition(1500);
             cloud.position.set(pos.x, 200 + Math.random() * 100, pos.z);
             this.clouds.add(cloud);
@@ -320,6 +326,53 @@ export class World {
         this.addToGrid(hutData, 'HUT');
     }
 
+    createAncientRuins(pos) {
+        if (!this.ruinsGltf) return;
+
+        const ruins = cloneSkeleton(this.ruinsGltf.scene);
+        const terrainH = this.getTerrainHeight(pos.x, pos.z);
+        const scale = 48;
+
+        ruins.scale.setScalar(scale);
+        ruins.position.set(pos.x, terrainH, pos.z);
+
+        ruins.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(ruins);
+        ruins.position.y -= box.min.y - terrainH;
+
+        ruins.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                child.frustumCulled = false;
+            }
+        });
+
+        this.scene.add(ruins);
+        this.addRuinsWallColliders(ruins);
+    }
+
+    addRuinsWallColliders(ruins) {
+        ruins.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(ruins);
+        const minX = box.min.x;
+        const maxX = box.max.x;
+        const minZ = box.min.z;
+        const maxZ = box.max.z;
+        const centerX = (minX + maxX) / 2;
+        const doorwayHalf = 6;
+        const wallThickness = 2.5;
+
+        this.wallColliders.push(
+            { minX: minX - wallThickness, maxX: minX + wallThickness, minZ, maxZ },
+            { minX: maxX - wallThickness, maxX: maxX + wallThickness, minZ, maxZ },
+            { minX: minX, maxX: centerX - doorwayHalf, minZ: minZ - wallThickness, maxZ: minZ + wallThickness },
+            { minX: centerX + doorwayHalf, maxX: maxX, minZ: minZ - wallThickness, maxZ: minZ + wallThickness },
+            { minX: minX, maxX: centerX - doorwayHalf, minZ: maxZ - wallThickness, maxZ: maxZ + wallThickness },
+            { minX: centerX + doorwayHalf, maxX: maxX, minZ: maxZ - wallThickness, maxZ: maxZ + wallThickness }
+        );
+    }
+
     setupGrass() {
         if (!this.grassGltf) return;
 
@@ -373,6 +426,19 @@ export class World {
                 const pushDist = minDist - dist;
                 return new THREE.Vector3(Math.cos(angle) * pushDist, 0, Math.sin(angle) * pushDist);
             }
+        }
+
+        for (const wall of this.wallColliders) {
+            const clampedX = Math.max(wall.minX, Math.min(playerPosition.x, wall.maxX));
+            const clampedZ = Math.max(wall.minZ, Math.min(playerPosition.z, wall.maxZ));
+            const dx = playerPosition.x - clampedX;
+            const dz = playerPosition.z - clampedZ;
+            const distSq = dx * dx + dz * dz;
+            if (distSq >= radius * radius) continue;
+
+            const dist = Math.sqrt(Math.max(0.0001, distSq));
+            const push = radius - dist;
+            return new THREE.Vector3((dx / dist) * push, 0, (dz / dist) * push);
         }
         return null;
     }

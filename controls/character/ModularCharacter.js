@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { ThirdPersonCameraController } from '../rosieControls.js';
+import { PlayerController, ThirdPersonCameraController } from '../rosieControls.js';
 import { InputHandler } from './InputHandler.js';
-import { CharacterStateMachine } from './CharacterStateMachine.js';
 import { AnimationController } from './AnimationController.js';
-import { CharacterController } from './CharacterController.js';
+import { CONFIG } from '../../config.js';
 
-const MODEL_FILE = 'assets/tripo_convert_a97dfcab-a514-494f-ae17-4a2f4b0d5715.fbx';
+const MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
 
 const ANIMATION_FILES = {
     Idle: 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx',
@@ -28,9 +27,8 @@ export class ModularCharacter {
         this.scene.add(this.mesh);
 
         this.inputHandler = new InputHandler();
-        this.stateMachine = new CharacterStateMachine();
         this.animationController = null;
-        this.characterController = null;
+        this.controller = null;
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
             distance: 5.2,
@@ -86,18 +84,34 @@ export class ModularCharacter {
                 Crouch: crouch.animations[0]
             };
 
+            let minY = 0;
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
                 }
+                if (child.isBone && !this.handBone && /right.*hand|hand.*right|r_hand|hand_r|mixamorig.*righthand/i.test(child.name)) {
+                    this.handBone = child;
+                }
             });
 
-            model.scale.setScalar(0.01);
+            model.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const scale = 3.1 / Math.max(0.001, size.y);
+            minY = box.min.y * scale;
+            model.scale.setScalar(scale);
+            model.position.y -= minY;
             this.mesh.add(model);
 
             this.animationController = new AnimationController(model, clipsByName);
-            this.characterController = new CharacterController(this.mesh, this.stateMachine, this.animationController, this.inputHandler);
+            this.controller = new PlayerController(this.mesh, {
+                moveSpeed: CONFIG.PLAYER.MOVE_SPEED,
+                jumpForce: CONFIG.PLAYER.JUMP_FORCE,
+                gravity: CONFIG.PLAYER.GRAVITY,
+                groundLevel: 0,
+                modelFacingOffset: -Math.PI / 2
+            });
             this.animationController.Play('Idle');
         } catch (error) {
             console.warn('[ModularCharacter] Failed to load FBX character or animation set.', error);
@@ -111,12 +125,57 @@ export class ModularCharacter {
 
     update(deltaTime, world, isActive) {
         if (!isActive) return;
-        if (!this.characterController) {
+        if (!this.controller) {
             this.cameraController.update(deltaTime, this.mesh.rotation.y);
             return;
         }
 
-        this.characterController.update(deltaTime, this.cameraController.rotation, world);
+        if (world?.getTerrainHeight) {
+            this.controller.groundLevel = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+        }
+        this.syncInputToController();
+        this.controller.update(deltaTime, this.cameraController.rotation);
+
+        if (world?.checkCollisions) {
+            const pushBack = world.checkCollisions(this.mesh.position, 1.2);
+            if (pushBack) this.mesh.position.add(pushBack);
+        }
+        this.updateAnimations(deltaTime);
         this.cameraController.update(deltaTime, this.mesh.rotation.y);
+    }
+
+    syncInputToController() {
+        if (!this.controller) return;
+        const keys = this.controller.keys;
+        keys.KeyW = this.inputHandler.keys.has('KeyW');
+        keys.KeyA = this.inputHandler.keys.has('KeyA');
+        keys.KeyS = this.inputHandler.keys.has('KeyS');
+        keys.KeyD = this.inputHandler.keys.has('KeyD');
+        keys.Space = this.inputHandler.keys.has('Space');
+    }
+
+    updateAnimations(deltaTime) {
+        if (!this.animationController || !this.controller) return;
+        const hasMove = Boolean(
+            this.controller.keys.KeyW ||
+            this.controller.keys.KeyA ||
+            this.controller.keys.KeyS ||
+            this.controller.keys.KeyD
+        );
+        const running = (this.inputHandler.keys.has('ShiftLeft') || this.inputHandler.keys.has('ShiftRight')) && this.controller.keys.KeyW;
+
+        if (!this.controller.isOnGround) {
+            this.animationController.Play('Jump');
+        } else if (hasMove && running) {
+            this.animationController.Play('Run');
+        } else if (hasMove) {
+            this.animationController.Play('Walk');
+        } else if (this.inputHandler.keys.has('KeyC')) {
+            this.animationController.Play('Crouch');
+        } else {
+            this.animationController.Play('Idle');
+        }
+
+        this.animationController.update(deltaTime);
     }
 }
