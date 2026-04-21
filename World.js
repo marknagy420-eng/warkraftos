@@ -150,11 +150,19 @@ export class World {
         this.settings = { ...this.settings, ...settings };
         const qualityMap = { low: 0.8, medium: 0.9, high: 1, ultra: 1.25 };
         const textureAniso = { low: 1, medium: 2, high: 4, ultra: 8 };
+        const shadowMapSize = { low: 512, medium: 1024, high: 1536, ultra: 2048 };
         const scalar = qualityMap[this.settings.textureQuality] || 1;
         this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0022 / scalar);
         if (this.terrain?.material?.map) {
             this.terrain.material.map.anisotropy = textureAniso[this.settings.textureQuality] || 4;
             this.terrain.material.needsUpdate = true;
+        }
+        if (this.directionalLight) {
+            const size = shadowMapSize[this.settings.graphicsPreset] || 1024;
+            if (this.directionalLight.shadow.mapSize.width !== size) {
+                this.directionalLight.shadow.mapSize.set(size, size);
+                this.directionalLight.shadow.needsUpdate = true;
+            }
         }
         this.enemies.forEach((enemy) => enemy.applyQualitySettings?.(this.settings));
     }
@@ -178,6 +186,7 @@ export class World {
         directional.shadow.normalBias = 0.02;
         directional.shadow.radius = 1.2;
         this.scene.add(directional);
+        this.directionalLight = directional;
 
         // Fog for atmosphere and performance (draw distance feel)
         this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);

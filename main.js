@@ -25,6 +25,15 @@ class Game {
         document.body.appendChild(this.renderer.domElement);
 
         this.clock = new THREE.Clock();
+        this.currentPixelRatio = 1;
+        this.dynamicResolution = {
+            enabled: true,
+            min: 0.62,
+            max: 1.7,
+            targetFrameMs: 16.7,
+            frameMs: 16.7,
+            cooldown: 0
+        };
         this.ui = null;
         this.player = null;
         this.characterManager = null;
@@ -80,7 +89,10 @@ class Game {
         try {
             let adapterName = 'WebGL';
             if (navigator.gpu?.requestAdapter) {
-                const adapter = await navigator.gpu.requestAdapter();
+                const adapter = await Promise.race([
+                    navigator.gpu.requestAdapter(),
+                    new Promise((resolve) => setTimeout(() => resolve(null), 1200))
+                ]);
                 if (adapter?.info?.description) adapterName = adapter.info.description;
             }
             const gl = this.renderer.getContext();
@@ -101,7 +113,10 @@ class Game {
         if (!settings.nativeResolution) pixelRatio *= 0.8;
         if (settings.dlss) pixelRatio *= 0.85;
 
-        this.renderer.setPixelRatio(Math.max(0.5, Math.min(pixelRatio, 1.7)));
+        this.currentPixelRatio = Math.max(0.5, Math.min(pixelRatio, 1.7));
+        this.dynamicResolution.max = this.currentPixelRatio;
+        this.dynamicResolution.enabled = settings.graphicsPreset === 'high' || settings.graphicsPreset === 'ultra';
+        this.renderer.setPixelRatio(this.currentPixelRatio);
         this.renderer.shadowMap.enabled = settings.graphicsPreset !== 'low';
         this.renderer.shadowMap.type = settings.graphicsPreset === 'ultra' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = settings.hdr ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
@@ -350,6 +365,25 @@ class Game {
         requestAnimationFrame(() => this.animate());
 
         const deltaTime = Math.min(Math.max(this.clock.getDelta(), 1 / 240), 0.1);
+        const frameMs = deltaTime * 1000;
+        this.dynamicResolution.frameMs = THREE.MathUtils.lerp(this.dynamicResolution.frameMs, frameMs, 0.08);
+
+        if (this.dynamicResolution.enabled) {
+            this.dynamicResolution.cooldown += deltaTime;
+            if (this.dynamicResolution.cooldown >= 0.45) {
+                this.dynamicResolution.cooldown = 0;
+                let nextRatio = this.currentPixelRatio;
+                const lowFps = this.dynamicResolution.frameMs > 21.5;
+                const recovered = this.dynamicResolution.frameMs < 15.8;
+                if (lowFps) nextRatio -= 0.06;
+                else if (recovered) nextRatio += 0.04;
+                nextRatio = THREE.MathUtils.clamp(nextRatio, this.dynamicResolution.min, this.dynamicResolution.max);
+                if (Math.abs(nextRatio - this.currentPixelRatio) >= 0.02) {
+                    this.currentPixelRatio = nextRatio;
+                    this.renderer.setPixelRatio(nextRatio);
+                }
+            }
+        }
 
         if (this.isStarted && this.characterManager && this.world) {
             this.characterManager.update(deltaTime, this.world);
