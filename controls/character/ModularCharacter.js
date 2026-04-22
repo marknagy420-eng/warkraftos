@@ -61,8 +61,8 @@ export class ModularCharacter {
             height: 2.6,
             rotationSpeed: 0.0032,
             pitchSpeed: 0.0024,
-            autoRotationSpeed: 5,
-            fixedBehind: false,
+            autoRotationSpeed: 8.5,
+            fixedBehind: true,
             pitch: 0.2
         });
         this.cameraController.enabled = false;
@@ -114,7 +114,11 @@ export class ModularCharacter {
         for (const file of candidates) {
             try {
                 const anim = await loader.loadAsync(file);
-                if (anim.animations?.[0]) return anim.animations[0];
+                if (anim.animations?.[0]) {
+                    const clip = anim.animations[0].clone();
+                    clip.tracks = clip.tracks.filter((track) => !/\.position$/i.test(track.name));
+                    return clip;
+                }
             } catch (_) {
                 // try next fallback
             }

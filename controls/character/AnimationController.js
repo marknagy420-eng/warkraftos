@@ -27,7 +27,9 @@ export class AnimationController {
         next.enabled = true;
         next.setEffectiveTimeScale(1);
         next.setEffectiveWeight(1);
-        next.reset();
+        if (!next.isRunning()) {
+            next.reset();
+        }
         next.play();
 
         if (this.currentAnimation) {

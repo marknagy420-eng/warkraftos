@@ -305,6 +305,20 @@ class Game {
                     }
                 }
             });
+
+            this.world.deerNpcs.forEach((deer) => {
+                if (deer.isDead) return;
+                const toDeer = new THREE.Vector3().subVectors(deer.mesh.position, player.mesh.position);
+                const dist = toDeer.length();
+                toDeer.normalize();
+                const dot = camForward.dot(toDeer);
+                if (dist < CONFIG.PLAYER.ATTACK_RANGE + 0.8 && dot > 0.2) {
+                    deer.takeDamage(CONFIG.PLAYER.DAMAGE, player.mesh.position);
+                    this.showHitEffect(deer.mesh.position);
+                } else if (dist < 8) {
+                    deer.scareFrom(player.mesh.position);
+                }
+            });
         });
     }
 

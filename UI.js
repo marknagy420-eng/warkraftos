@@ -4,8 +4,11 @@ import { QUESTS } from './quests.js';
 export class UI {
     constructor(language = 'en') {
         this.language = language;
+        this.stats = { health: 100, food: 100, water: 100, energy: 100, fatigue: 0 };
+        this.inventory = new Map();
         this.setupHTML();
         this.setupListeners();
+        this.startNeedsLoop();
     }
 
     setupHTML() {
@@ -70,19 +73,33 @@ export class UI {
         const inventory = document.createElement('div');
         inventory.id = 'inventory-panel';
         inventory.style.position = 'fixed';
-        inventory.style.bottom = '110px';
-        inventory.style.right = '20px';
-        inventory.style.width = '240px';
-        inventory.style.background = 'rgba(0,0,0,0.65)';
-        inventory.style.border = '2px solid #666';
-        inventory.style.borderRadius = '8px';
-        inventory.style.padding = '12px';
+        inventory.style.inset = '7% 10%';
+        inventory.style.background = 'linear-gradient(160deg, rgba(10,10,10,0.92), rgba(58,24,8,0.82))';
+        inventory.style.border = '2px solid rgba(240,132,48,0.55)';
+        inventory.style.borderRadius = '12px';
+        inventory.style.padding = '18px';
         inventory.style.fontFamily = "'Orbitron', sans-serif";
         inventory.style.color = CONFIG.COLORS.UI_TEXT;
         inventory.style.display = 'none';
+        inventory.style.zIndex = '1200';
+        inventory.style.backdropFilter = 'blur(2px)';
         inventory.innerHTML = `
-            <div style="font-size: 15px; margin-bottom: 8px;">INVENTORY (I)</div>
-            <div id="weapon-slot" style="font-size: 13px; opacity: 0.9;">Weapon Slot: Empty</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <div style="font-size: 24px; color:#ff8f33; letter-spacing:1px;">INVENTORY</div>
+                <div style="font-size: 13px; opacity:0.85;">[I] Close</div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1.8fr 1fr; gap:16px;">
+                <div>
+                    <div style="font-size:13px; margin-bottom:8px; color:#ffc58d;">Character Inventory</div>
+                    <div id="inventory-grid" style="display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:8px;"></div>
+                    <div id="weapon-slot" style="font-size: 13px; opacity: 0.9; margin-top:12px;">Weapon Slot: Empty</div>
+                </div>
+                <div>
+                    <div style="font-size:13px; color:#ffc58d; margin-bottom:8px;">Vitals</div>
+                    <div id="needs-panel" style="display:grid; gap:8px;"></div>
+                    <button id="eat-meat-btn" style="margin-top:12px; width:100%; background:#3d2a1a; color:#ffdbbf; border:1px solid #ad6b35; padding:8px; cursor:pointer;">Eat Meat (E)</button>
+                </div>
+            </div>
         `;
         document.body.appendChild(inventory);
 
@@ -95,12 +112,17 @@ export class UI {
         this.goldDisplay = hud.querySelector('#gold-display');
         this.weaponSlot = inventory.querySelector('#weapon-slot');
         this.inventoryPanel = inventory;
+        this.inventoryGrid = inventory.querySelector('#inventory-grid');
+        this.needsPanel = inventory.querySelector('#needs-panel');
+        this.eatButton = inventory.querySelector('#eat-meat-btn');
         
         this.gold = 0;
         this.kills = 0;
         this.activeQuest = QUESTS.Q001_ShadowAwakening;
         this.activeQuestStateId = 'START';
         this.renderQuestState();
+        this.renderInventory();
+        this.renderNeeds();
     }
 
     setupListeners() {
@@ -124,7 +146,14 @@ export class UI {
         window.addEventListener('chest-opened', (e) => {
             const { gold } = e.detail;
             this.addGold(gold);
+            this.addItem('gold', Math.floor(gold / 10), '🪙');
             this.showMessage(`Found ${gold} gold!`);
+        });
+
+        window.addEventListener('item-collected', (e) => {
+            const { itemId, amount, icon } = e.detail;
+            this.addItem(itemId, amount, icon);
+            this.showMessage(`Collected: ${itemId} +${amount}`);
         });
 
         window.addEventListener('inventory-toggle', (e) => {
@@ -136,6 +165,14 @@ export class UI {
             const { equipped } = e.detail;
             this.weaponSlot.textContent = equipped ? 'Weapon Slot: Golden Sword (equipped)' : 'Weapon Slot: Empty';
         });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyE' && this.inventoryPanel.style.display !== 'none') {
+                this.consumeFood();
+            }
+        });
+
+        this.eatButton.addEventListener('click', () => this.consumeFood());
 
         window.addEventListener('language-changed', (e) => {
             this.language = e.detail.language;
@@ -150,6 +187,98 @@ export class UI {
     addGold(amount) {
         this.gold += amount;
         this.goldDisplay.textContent = `Gold: ${this.gold}g`;
+    }
+
+    addItem(itemId, amount = 1, icon = '📦') {
+        const prev = this.inventory.get(itemId) || { amount: 0, icon };
+        prev.amount += amount;
+        prev.icon = icon || prev.icon;
+        this.inventory.set(itemId, prev);
+        this.renderInventory();
+    }
+
+    consumeFood() {
+        const meat = this.inventory.get('meat');
+        if (!meat || meat.amount <= 0) {
+            this.showMessage('No meat in inventory!');
+            return;
+        }
+        meat.amount -= 1;
+        if (meat.amount <= 0) this.inventory.delete('meat');
+        this.stats.food = Math.min(100, this.stats.food + 28);
+        this.stats.energy = Math.min(100, this.stats.energy + 16);
+        this.stats.fatigue = Math.max(0, this.stats.fatigue - 10);
+        this.renderInventory();
+        this.renderNeeds();
+        this.showMessage('You ate roasted rib.');
+    }
+
+    renderInventory() {
+        if (!this.inventoryGrid) return;
+        this.inventoryGrid.innerHTML = '';
+        const entries = [...this.inventory.entries()];
+        const maxSlots = 24;
+        for (let i = 0; i < maxSlots; i++) {
+            const slot = document.createElement('div');
+            slot.style.border = '1px solid rgba(210,210,210,0.4)';
+            slot.style.height = '62px';
+            slot.style.borderRadius = '6px';
+            slot.style.background = 'rgba(13,13,13,0.45)';
+            slot.style.display = 'flex';
+            slot.style.alignItems = 'center';
+            slot.style.justifyContent = 'center';
+            slot.style.fontSize = '28px';
+            const entry = entries[i];
+            if (entry) {
+                const [name, data] = entry;
+                slot.textContent = data.icon || '📦';
+                const qty = document.createElement('div');
+                qty.textContent = `${data.amount}`;
+                qty.style.position = 'absolute';
+                qty.style.fontSize = '12px';
+                qty.style.marginTop = '42px';
+                slot.style.position = 'relative';
+                slot.title = `${name} (${data.amount})`;
+                slot.appendChild(qty);
+            }
+            this.inventoryGrid.appendChild(slot);
+        }
+    }
+
+    renderNeeds() {
+        const bars = [
+            ['Health', this.stats.health, '#ff5f4d'],
+            ['Food', this.stats.food, '#ff9f33'],
+            ['Water', this.stats.water, '#5fc9ff'],
+            ['Energy', this.stats.energy, '#e5ff57'],
+            ['Fatigue', this.stats.fatigue, '#b792ff']
+        ];
+        this.needsPanel.innerHTML = '';
+        bars.forEach(([label, value, color]) => {
+            const row = document.createElement('div');
+            row.innerHTML = `
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px;">
+                    <span>${label}</span><span>${Math.round(value)}/100</span>
+                </div>
+                <div style="height:8px; background:#222; border:1px solid #000;">
+                    <div style="height:100%; width:${Math.max(0, value)}%; background:${color}; transition:width .2s;"></div>
+                </div>
+            `;
+            this.needsPanel.appendChild(row);
+        });
+    }
+
+    startNeedsLoop() {
+        setInterval(() => {
+            this.stats.food = Math.max(0, this.stats.food - 0.18);
+            this.stats.water = Math.max(0, this.stats.water - 0.22);
+            this.stats.energy = Math.max(0, this.stats.energy - 0.12);
+            this.stats.fatigue = Math.min(100, this.stats.fatigue + 0.15);
+            if (this.stats.food < 10 || this.stats.water < 10) {
+                this.stats.health = Math.max(1, this.stats.health - 0.25);
+            }
+            this.renderNeeds();
+        }, 1000);
     }
 
     renderQuestState() {

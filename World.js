@@ -19,8 +19,12 @@ export class World {
         this.twistedTreeGltf = null;
         this.hutGltf = null;
         this.grassGltf = null;
+        this.flowerGltf = null;
+        this.coinGltf = null;
+        this.roastedRibGltf = null;
         this.deerGltf = null;
         this.deerNpcs = [];
+        this.interactables = [];
         this.ruinsGltf = null;
         this.wallColliders = [];
         this.pathTreeMarkers = [];
@@ -38,8 +42,16 @@ export class World {
         this.setupLights();
         this.setupGround();
         this.setupSky();
+        this.setupInteractionInput();
         this.loadModels();
         this.applyQualitySettings(this.settings);
+    }
+
+    setupInteractionInput() {
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (e.code === 'KeyF') this.tryPickupNearest();
+        });
     }
 
     addToGrid(obj, type) {
@@ -89,6 +101,17 @@ export class World {
         loader.load('assets/deadgrass3dmodel.glb', (gltf) => {
             this.grassGltf = gltf;
             this.setupGrass();
+        });
+        loader.load('assets/daisy-like+flower+3d+model.glb', (gltf) => {
+            this.flowerGltf = gltf;
+            this.setupHerbFlowers();
+        });
+        loader.load('assets/gold+coin+3d+model.glb', (gltf) => {
+            this.coinGltf = gltf;
+            this.setupCoins();
+        });
+        loader.load('assets/roasted+pork+rib+3d+model.glb', (gltf) => {
+            this.roastedRibGltf = gltf;
         });
 
         // Load Goblin Model
@@ -276,7 +299,7 @@ export class World {
 
 
     getWorldDensityMultiplier() {
-        const densityByPreset = { low: 0.35, medium: 0.6, high: 0.85, ultra: 1.0 };
+        const densityByPreset = { low: 0.3, medium: 0.52, high: 0.72, ultra: 0.86 };
         return densityByPreset[this.settings.graphicsPreset] ?? densityByPreset.high;
     }
 
@@ -509,7 +532,7 @@ export class World {
         grassMesh.geometry.computeBoundingBox();
         const minY = grassMesh.geometry.boundingBox.min.y;
 
-        const grassByPreset = { low: 1600, medium: 3000, high: 4800, ultra: 6200 };
+        const grassByPreset = { low: 1200, medium: 2200, high: 3200, ultra: 4200 };
         const count = grassByPreset[this.settings.graphicsPreset] || 3000;
         const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
         instancedMesh.receiveShadow = false; // Disable grass shadows for major FPS boost
@@ -569,12 +592,24 @@ export class World {
 
     createChest(pos) {
         const terrainH = this.getTerrainHeight(pos.x, pos.z);
-        const chestGeo = new THREE.BoxGeometry(1, 0.6, 0.6);
-        const chestMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f });
-        const chest = new THREE.Mesh(chestGeo, chestMat);
-        chest.position.set(pos.x, terrainH + 0.3, pos.z);
-        this.scene.add(chest);
-        this.chests.push(chest);
+        const coin = this.coinGltf ? cloneSkeleton(this.coinGltf.scene) : null;
+        if (coin) {
+            coin.scale.setScalar(0.75);
+            coin.position.set(pos.x, terrainH + 0.6, pos.z);
+            coin.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = false;
+                    child.receiveShadow = false;
+                }
+            });
+            this.scene.add(coin);
+            this.chests.push(coin);
+            return;
+        }
+        const fallback = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xf1c40f }));
+        fallback.position.set(pos.x, terrainH + 0.3, pos.z);
+        this.scene.add(fallback);
+        this.chests.push(fallback);
     }
 
     setupEnemies() {
@@ -620,6 +655,7 @@ export class World {
     }
 
     update(deltaTime, player) {
+        this.lastPlayer = player;
         // Move sky with player to avoid clipping
         if (this.sky) {
             this.sky.position.copy(player.mesh.position);
@@ -635,5 +671,83 @@ export class World {
                 window.dispatchEvent(new CustomEvent('chest-opened', { detail: { gold: 50 } }));
             }
         });
+    }
+
+    addInteractable({ mesh, itemId, amount = 1, radius = 2, icon = '' }) {
+        this.interactables.push({ mesh, itemId, amount, radius, icon, active: true });
+    }
+
+    tryPickupNearest(playerLike = null) {
+        const active = playerLike || this.lastPlayer;
+        if (!active?.mesh) return;
+        let nearest = null;
+        let nearestDist = Infinity;
+        for (const item of this.interactables) {
+            if (!item.active || !item.mesh?.parent) continue;
+            const dist = active.mesh.position.distanceTo(item.mesh.position);
+            if (dist < item.radius && dist < nearestDist) {
+                nearest = item;
+                nearestDist = dist;
+            }
+        }
+        if (!nearest) return;
+        nearest.active = false;
+        this.scene.remove(nearest.mesh);
+        window.dispatchEvent(new CustomEvent('item-collected', {
+            detail: { itemId: nearest.itemId, amount: nearest.amount, icon: nearest.icon }
+        }));
+    }
+
+    setupHerbFlowers() {
+        if (!this.flowerGltf || !this.grassGltf) return;
+        const herbCountByPreset = { low: 120, medium: 220, high: 320, ultra: 420 };
+        const count = herbCountByPreset[this.settings.graphicsPreset] || 220;
+        for (let i = 0; i < count; i++) {
+            const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
+            if (pos.length() < 20) {
+                i--;
+                continue;
+            }
+            const flower = cloneSkeleton(this.flowerGltf.scene);
+            const terrainH = this.getTerrainHeight(pos.x, pos.z);
+            flower.scale.setScalar(0.45 + Math.random() * 0.2);
+            flower.position.set(pos.x, terrainH, pos.z);
+            flower.rotation.y = Math.random() * Math.PI * 2;
+            this.scene.add(flower);
+            this.addInteractable({ mesh: flower, itemId: 'herb', amount: 1, radius: 2.2, icon: '🌼' });
+        }
+    }
+
+    setupCoins() {
+        if (!this.coinGltf) return;
+        this.chests.forEach((chest) => this.scene.remove(chest));
+        this.chests = [];
+        const treasureCount = this.getScaledWorldCount(CONFIG.WORLD.TREASURE_COUNT);
+        for (let i = 0; i < treasureCount; i++) {
+            const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
+            if (pos.length() < 40) {
+                i--;
+                continue;
+            }
+            this.createChest(pos);
+        }
+    }
+
+    spawnMeatDrops(position) {
+        if (!this.roastedRibGltf) return;
+        const count = 3 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < count; i++) {
+            const drop = cloneSkeleton(this.roastedRibGltf.scene);
+            const scale = 0.15 + Math.random() * 0.08;
+            drop.scale.setScalar(scale);
+            const ox = (Math.random() - 0.5) * 2;
+            const oz = (Math.random() - 0.5) * 2;
+            const x = position.x + ox;
+            const z = position.z + oz;
+            const y = this.getTerrainHeight(x, z);
+            drop.position.set(x, y + 0.08, z);
+            this.scene.add(drop);
+            this.addInteractable({ mesh: drop, itemId: 'meat', amount: 1, radius: 2, icon: '🍖' });
+        }
     }
 }
