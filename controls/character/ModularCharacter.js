@@ -9,6 +9,7 @@ import { CONFIG } from '../../config.js';
 
 const MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
 const MODEL_BASE_ROTATION_Y = Math.PI / 2;
+const GOLDEN_SWORD_FILE = 'assets/金色长剑3d模型.glb';
 
 const ANIMATION_FILES = {
     Idle: ['assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx'],
@@ -47,6 +48,7 @@ export class ModularCharacter {
         this.lastAttackTime = 0;
         this.spawnPoint = new THREE.Vector3(0, 0, 0);
         this.damageTakenMultiplier = 1;
+        this.modelGroundOffset = 0;
 
         this.mesh = new THREE.Group();
         this.mesh.visible = false;
@@ -62,7 +64,7 @@ export class ModularCharacter {
             rotationSpeed: 0.0032,
             pitchSpeed: 0.0024,
             autoRotationSpeed: 5,
-            fixedBehind: false,
+            fixedBehind: true,
             pitch: 0.2
         });
         this.cameraController.enabled = false;
@@ -153,6 +155,7 @@ export class ModularCharacter {
             const minY = box.min.y * scale;
             model.scale.setScalar(scale);
             model.position.y -= minY;
+            this.modelGroundOffset = 0;
             model.rotation.y = MODEL_BASE_ROTATION_Y;
             this.mesh.add(model);
 
@@ -196,27 +199,48 @@ export class ModularCharacter {
         };
 
         gltfLoader.load(
-            'assets/medieval sword 3d model.glb',
+            GOLDEN_SWORD_FILE,
             (gltf) => addSword(cloneSkeleton(gltf.scene)),
             undefined,
             () => {
-                fbxLoader.load(
-                    'assets/tripo_convert_a0821ddd-4716-4fa9-bf89-600e19140c5b.fbx',
-                    (fbx) => addSword(fbx),
+                gltfLoader.load(
+                    'assets/medieval sword 3d model.glb',
+                    (gltf) => addSword(cloneSkeleton(gltf.scene)),
                     undefined,
                     () => {
                         fbxLoader.load(
-                            'assets/tripo_convert_a97dfcab-a514-494f-ae17-4a2f4b0d5715.fbx',
+                            'assets/tripo_convert_a0821ddd-4716-4fa9-bf89-600e19140c5b.fbx',
                             (fbx) => addSword(fbx),
                             undefined,
                             () => {
-                                gltfLoader.load('assets/金色长剑3d模型.glb', (gltf) => addSword(cloneSkeleton(gltf.scene)));
+                                fbxLoader.load(
+                                    'assets/tripo_convert_a97dfcab-a514-494f-ae17-4a2f4b0d5715.fbx',
+                                    (fbx) => addSword(fbx),
+                                    undefined,
+                                    () => {
+                                        gltfLoader.load(GOLDEN_SWORD_FILE, (gltf) => addSword(cloneSkeleton(gltf.scene)));
+                                    }
+                                );
                             }
                         );
                     }
                 );
             }
         );
+    }
+
+    keepCharacterOnGround(world) {
+        if (!world?.getTerrainHeight) return;
+        const terrainY = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+        const targetY = terrainY + this.modelGroundOffset;
+        if (!this.controller?.isOnGround && this.mesh.position.y > targetY + 0.01) return;
+        this.mesh.position.y = targetY;
+        if (this.controller) {
+            this.controller.groundLevel = targetY;
+            this.controller.velocity.y = Math.max(0, this.controller.velocity.y);
+            this.controller.isOnGround = true;
+            this.controller.canJump = true;
+        }
     }
 
     applyQualitySettings(settings) {
@@ -308,7 +332,7 @@ export class ModularCharacter {
         }
 
         if (world?.getTerrainHeight) {
-            this.controller.groundLevel = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+            this.controller.groundLevel = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z) + this.modelGroundOffset;
         }
 
         this.syncInputToController();
@@ -320,6 +344,7 @@ export class ModularCharacter {
             const pushBack = world.checkCollisions(this.mesh.position, 1.2);
             if (pushBack) this.mesh.position.add(pushBack);
         }
+        this.keepCharacterOnGround(world);
 
         this.updateAnimations(deltaTime);
         this.cameraController.update(deltaTime, this.mesh.rotation.y);
