@@ -42,6 +42,8 @@ class Game {
         this.isStarted = false;
         this.mapVisible = false;
         this.mapStaticMarkers = [];
+        this.dayLengthSeconds = 180;
+        this.gameTimeHours = 8.0;
 
         this.setupMapOverlay();
         this.setupEventListeners();
@@ -379,6 +381,9 @@ class Game {
         if (document.hidden) return;
 
         if (this.isStarted && this.characterManager && this.world) {
+            this.gameTimeHours = (this.gameTimeHours + (deltaTime * 24 / this.dayLengthSeconds)) % 24;
+            this.world.setTimeOfDay?.(this.gameTimeHours);
+            window.dispatchEvent(new CustomEvent('game-time-changed', { detail: { hours: this.gameTimeHours } }));
             this.characterManager.update(deltaTime, this.world);
             const activeCharacter = this.characterManager.getActiveCharacter();
             if (activeCharacter) {

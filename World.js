@@ -34,7 +34,7 @@ export class World {
         this.pathTreeMarkers = [];
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
-        this.districtPosition = new THREE.Vector3(-420, 0, -300);
+        this.districtPosition = new THREE.Vector3(-40, 0, -35);
         this.noSpawnZones = [];
         
         // Spatial Database (Grid) for performance optimization
@@ -260,9 +260,14 @@ export class World {
     }
 
     setupGround() {
-        const groundTexture = this.textureLoader.load('assets/fold.jpg');
+        const groundTexture = this.loadFirstAvailableTexture([
+            'assets/Ground068_2K-JPG.jpg',
+            'assets/Ground068_2K-JPG_Color.jpg',
+            'assets/Ground068_2K-JPG_BaseColor.jpg',
+            'assets/fold.jpg'
+        ]);
         groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-        groundTexture.repeat.set(100, 100);
+        groundTexture.repeat.set(80, 80);
         groundTexture.minFilter = THREE.LinearMipmapLinearFilter;
         groundTexture.magFilter = THREE.LinearFilter;
 
@@ -300,30 +305,61 @@ export class World {
     }
 
     setupSky() {
-        const hdriCandidates = [
-            'assets/DaySkyHDRI042B_1K_HDR.exr',
-            'assets/DaySkyHDRI042B_1K.exr'
-        ];
-        this.loadFirstAvailableExr(hdriCandidates, (texture) => {
-            texture.mapping = THREE.EquirectangularReflectionMapping;
-            this.scene.background = texture;
-            this.scene.environment = texture;
-        }, () => {
-            this.setupFallbackSkyDome();
-        });
+        this.activeSkyKey = null;
+        this.activeSkyTexture = null;
+        this.nextSkyTexture = null;
+        this.skyTransition = 1;
+        this.nightVariantKey = null;
+        this.skyTextureCandidates = {
+            dawn: ['assets/DaySkyHDRI042B_1K_HDR.exr', 'assets/DaySkyHDRI042B_1K.exr'],
+            day: ['assets/DaySkyHDRI027B_4K_HDR.exr'],
+            sunset: ['assets/MorningSkyHDRI011B_4K_HDR.exr'],
+            nightA: ['assets/NightSkyHDRI007_4K_HDR.exr'],
+            nightB: ['assets/NightSkyHDRI001_4K_HDR.exr']
+        };
+        this.skyTextures = new Map();
+        this.setupSkyBlendDome();
+        this.loadSkySet();
     }
 
-    setupFallbackSkyDome() {
-        // Create a large sky dome
+    setupSkyBlendDome() {
         const skyGeo = new THREE.SphereGeometry(2500, 32, 32);
-        const skyMat = new THREE.MeshBasicMaterial({ 
-            color: 0x1d2230,
-            side: THREE.BackSide 
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                map1: { value: null },
+                map2: { value: null },
+                mixFactor: { value: 1.0 },
+                tint: { value: new THREE.Color(0x1d2230) }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D map1;
+                uniform sampler2D map2;
+                uniform float mixFactor;
+                uniform vec3 tint;
+                varying vec2 vUv;
+                void main() {
+                    vec3 c1 = texture2D(map1, vUv).rgb;
+                    vec3 c2 = texture2D(map2, vUv).rgb;
+                    vec3 mixedSky = mix(c1, c2, mixFactor);
+                    float hasTex = step(0.001, dot(c1 + c2, vec3(1.0)));
+                    gl_FragColor = vec4(mix(tint, mixedSky, hasTex), 1.0);
+                }
+            `,
+            side: THREE.BackSide,
+            depthWrite: false
         });
         this.sky = new THREE.Mesh(skyGeo, skyMat);
         this.scene.add(this.sky);
+    }
 
-        // Add cloud billboards from texture
+    setupFallbackClouds() {
         this.clouds = new THREE.Group();
         this.scene.add(this.clouds);
         const cloudTexture = this.textureLoader.load('assets/Clouds-Transparent-Image-1.png');
@@ -372,6 +408,95 @@ export class World {
             );
         };
         tryLoad();
+    }
+
+    loadSkySet() {
+        const entries = Object.entries(this.skyTextureCandidates);
+        let pending = entries.length;
+        let loadedAny = false;
+        entries.forEach(([key, candidates]) => {
+            this.loadFirstAvailableExr(candidates, (texture) => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                texture.colorSpace = THREE.LinearSRGBColorSpace;
+                this.skyTextures.set(key, texture);
+                loadedAny = true;
+                pending--;
+                if (pending === 0) this.finishSkyLoading(loadedAny);
+            }, () => {
+                pending--;
+                if (pending === 0) this.finishSkyLoading(loadedAny);
+            });
+        });
+    }
+
+    finishSkyLoading(loadedAny) {
+        if (!loadedAny) {
+            this.setupFallbackClouds();
+            return;
+        }
+        const initial = this.skyTextures.get('dawn') || [...this.skyTextures.values()][0];
+        if (!initial) return;
+        this.activeSkyTexture = initial;
+        this.nextSkyTexture = initial;
+        this.sky.material.uniforms.map1.value = initial;
+        this.sky.material.uniforms.map2.value = initial;
+        this.scene.environment = initial;
+        this.scene.background = null;
+    }
+
+    loadFirstAvailableTexture(candidates) {
+        const texture = this.textureLoader.load(candidates[candidates.length - 1]);
+        let settled = false;
+        const tryLoad = (index = 0) => {
+            if (index >= candidates.length || settled) return;
+            this.textureLoader.load(
+                candidates[index],
+                (loaded) => {
+                    settled = true;
+                    texture.image = loaded.image;
+                    texture.needsUpdate = true;
+                },
+                undefined,
+                () => tryLoad(index + 1)
+            );
+        };
+        tryLoad(0);
+        return texture;
+    }
+
+    getSkyKeyForHour(hour) {
+        if (hour >= 5 && hour < 8) return 'dawn';
+        if (hour >= 8 && hour < 17) return 'day';
+        if (hour >= 17 && hour < 20) return 'sunset';
+        if (hour >= 20 || hour < 5) {
+            if (!this.nightVariantKey || Math.random() < 0.02) {
+                this.nightVariantKey = Math.random() < 0.65 ? 'nightA' : 'nightB';
+            }
+            return this.nightVariantKey;
+        }
+        return 'day';
+    }
+
+    setTimeOfDay(hour) {
+        this.currentHour = hour;
+        const targetKey = this.getSkyKeyForHour(hour);
+        const targetTexture = this.skyTextures.get(targetKey);
+        if (targetTexture && this.sky?.material?.uniforms && targetKey !== this.activeSkyKey) {
+            this.activeSkyKey = targetKey;
+            this.sky.material.uniforms.map1.value = this.activeSkyTexture || targetTexture;
+            this.sky.material.uniforms.map2.value = targetTexture;
+            this.nextSkyTexture = targetTexture;
+            this.skyTransition = 0;
+        }
+        this.applyDayLighting(hour);
+    }
+
+    applyDayLighting(hour) {
+        const t = (hour % 24) / 24;
+        const sun = Math.max(0, Math.sin(t * Math.PI * 2 - Math.PI / 2));
+        this.directionalLight.intensity = 0.25 + sun * 1.15;
+        this.rimLight.intensity = 0.15 + sun * 0.45;
+        this.scene.fog.density = THREE.MathUtils.lerp(0.006, 0.0022, sun);
     }
 
 
@@ -819,6 +944,14 @@ export class World {
         // Move sky with player to avoid clipping
         if (this.sky) {
             this.sky.position.copy(player.mesh.position);
+        }
+        if (this.sky?.material?.uniforms && this.skyTransition < 1) {
+            this.skyTransition = Math.min(1, this.skyTransition + deltaTime * 0.35);
+            this.sky.material.uniforms.mixFactor.value = this.skyTransition;
+            if (this.skyTransition >= 1 && this.nextSkyTexture) {
+                this.activeSkyTexture = this.nextSkyTexture;
+                this.scene.environment = this.activeSkyTexture;
+            }
         }
 
         this.enemies.forEach(enemy => enemy.update(deltaTime, player, this));

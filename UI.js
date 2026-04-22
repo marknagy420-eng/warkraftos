@@ -55,6 +55,24 @@ export class UI {
         `;
         document.body.appendChild(questLog);
 
+        const gameClock = document.createElement('div');
+        gameClock.id = 'game-clock';
+        gameClock.style.position = 'fixed';
+        gameClock.style.top = '220px';
+        gameClock.style.right = '20px';
+        gameClock.style.background = "url('ui/JPG/MiniPanel06.jpg') center/cover";
+        gameClock.style.padding = '10px 14px';
+        gameClock.style.borderRadius = '8px';
+        gameClock.style.color = CONFIG.COLORS.UI_TEXT;
+        gameClock.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
+        gameClock.style.border = '2px solid #6f6247';
+        gameClock.style.pointerEvents = 'none';
+        gameClock.style.fontSize = '22px';
+        gameClock.style.minWidth = '120px';
+        gameClock.style.textAlign = 'center';
+        gameClock.textContent = '08:00';
+        document.body.appendChild(gameClock);
+
         const prompt = document.createElement('div');
         prompt.id = 'game-prompt';
         prompt.style.position = 'fixed';
@@ -110,6 +128,7 @@ export class UI {
         this.questState = questLog.querySelector('#quest-state');
         this.questObjectives = questLog.querySelector('#quest-objectives');
         this.goldDisplay = hud.querySelector('#gold-display');
+        this.gameClock = gameClock;
         this.weaponSlot = inventory.querySelector('#weapon-slot');
         this.inventoryPanel = inventory;
         this.inventoryGrid = inventory.querySelector('#inventory-grid');
@@ -182,6 +201,18 @@ export class UI {
             };
             this.prompt.textContent = textMap[this.language] || textMap.en;
         });
+
+        window.addEventListener('game-time-changed', (e) => {
+            const { hours } = e.detail;
+            if (!this.gameClock) return;
+            this.gameClock.textContent = this.formatClock(hours);
+        });
+    }
+
+    formatClock(hours) {
+        const h = Math.floor(hours) % 24;
+        const m = Math.floor((hours % 1) * 60);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
 
     addGold(amount) {
