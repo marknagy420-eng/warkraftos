@@ -11,7 +11,7 @@ export class CharacterSelectionMenu {
         this.container.style.border = '1px solid #666';
         this.container.style.borderRadius = '8px';
         this.container.style.padding = '10px';
-        this.container.style.fontFamily = "'Orbitron', sans-serif";
+        this.container.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
         this.container.style.color = '#fff';
         this.container.style.zIndex = '980';
 

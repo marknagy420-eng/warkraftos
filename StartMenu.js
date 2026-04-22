@@ -39,7 +39,7 @@ export class StartMenu {
             alignItems: 'stretch',
             background: 'radial-gradient(circle at top, rgba(39,55,95,0.95), rgba(8,12,24,0.97))',
             color: '#f5f6ff',
-            fontFamily: "'Orbitron', sans-serif",
+            fontFamily: "'DarkMystic', 'Times New Roman', serif",
             zIndex: '1000',
             padding: '22px'
         });
