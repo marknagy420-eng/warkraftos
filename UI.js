@@ -18,18 +18,18 @@ export class UI {
         hud.style.top = '20px';
         hud.style.left = '20px';
         hud.style.color = CONFIG.COLORS.UI_TEXT;
-        hud.style.fontFamily = "'Orbitron', sans-serif";
+        hud.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
         hud.style.pointerEvents = 'none';
         hud.innerHTML = `
-            <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; border: 2px solid #555;">
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">WARRIOR (Lv. 1)</div>
-                <div id="hp-bar-container" style="width: 200px; height: 15px; background: #333; border: 1px solid #000; overflow: hidden; margin-bottom: 10px;">
-                    <div id="hp-bar" style="width: 100%; height: 100%; background: ${CONFIG.COLORS.UI_HEALTH}; transition: width 0.2s;"></div>
+            <div style="background: url('ui/JPG/MiniPanel03.jpg') center/cover; padding: 15px; border-radius: 8px; border: 2px solid #726349; box-shadow: 0 10px 24px rgba(0,0,0,.45);">
+                <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px; color:#ede0c6; text-shadow: 0 2px 6px #000;">WARRIOR (Lv. 1)</div>
+                <div id="hp-bar-container" style="width: 240px; height: 16px; background: rgba(10,10,10,.75); border: 1px solid #2f2318; overflow: hidden; margin-bottom: 10px;">
+                    <div id="hp-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg,#740b0f,#cd2822); transition: width 0.2s;"></div>
                 </div>
-                <div id="xp-bar-container" style="width: 200px; height: 8px; background: #333; border: 1px solid #000; overflow: hidden;">
-                    <div id="xp-bar" style="width: 0%; height: 100%; background: ${CONFIG.COLORS.UI_EXP}; transition: width 0.2s;"></div>
+                <div id="xp-bar-container" style="width: 240px; height: 8px; background: rgba(10,10,10,.75); border: 1px solid #2f2318; overflow: hidden;">
+                    <div id="xp-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg,#96742f,#f5cc63); transition: width 0.2s;"></div>
                 </div>
-                <div id="gold-display" style="margin-top: 5px; font-size: 14px;">Gold: 0g</div>
+                <div id="gold-display" style="margin-top: 8px; font-size: 16px; color:#f0d392;">Gold: 0g</div>
             </div>
         `;
         document.body.appendChild(hud);
@@ -39,15 +39,15 @@ export class UI {
         questLog.style.position = 'fixed';
         questLog.style.top = '20px';
         questLog.style.right = '20px';
-        questLog.style.background = 'rgba(0,0,0,0.5)';
+        questLog.style.background = "url('ui/JPG/MiniPanel04.jpg') center/cover";
         questLog.style.padding = '15px';
         questLog.style.borderRadius = '8px';
         questLog.style.color = CONFIG.COLORS.UI_TEXT;
-        questLog.style.fontFamily = "'Orbitron', sans-serif";
-        questLog.style.border = '2px solid #555';
+        questLog.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
+        questLog.style.border = '2px solid #6f6247';
         questLog.style.pointerEvents = 'none';
         questLog.innerHTML = `
-            <div style="font-size: 16px; font-weight: bold; border-bottom: 1px solid #777; margin-bottom: 10px;">QUEST LOG</div>
+            <div style="font-size: 24px; font-weight: bold; border-bottom: 1px solid #777; margin-bottom: 10px; color:#f3e4c3;">QUEST LOG</div>
             <div id="quest-title" style="font-size: 14px; margin-bottom: 6px;"></div>
             <div id="quest-state" style="font-size: 12px; opacity: 0.85; margin-bottom: 8px;"></div>
             <ul id="quest-objectives" style="margin: 0; padding-left: 18px; font-size: 12px;"></ul>
@@ -62,8 +62,8 @@ export class UI {
         prompt.style.width = '100%';
         prompt.style.textAlign = 'center';
         prompt.style.color = CONFIG.COLORS.UI_TEXT;
-        prompt.style.fontFamily = "'Orbitron', sans-serif";
-        prompt.style.fontSize = '24px';
+        prompt.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
+        prompt.style.fontSize = '30px';
         prompt.style.textShadow = '2px 2px #000';
         prompt.style.pointerEvents = 'none';
         prompt.innerHTML = 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
@@ -74,18 +74,18 @@ export class UI {
         inventory.id = 'inventory-panel';
         inventory.style.position = 'fixed';
         inventory.style.inset = '7% 10%';
-        inventory.style.background = 'linear-gradient(160deg, rgba(10,10,10,0.92), rgba(58,24,8,0.82))';
-        inventory.style.border = '2px solid rgba(240,132,48,0.55)';
+        inventory.style.background = "url('ui/JPG/BigPanel.jpg') center/cover";
+        inventory.style.border = '2px solid rgba(147,120,80,0.7)';
         inventory.style.borderRadius = '12px';
         inventory.style.padding = '18px';
-        inventory.style.fontFamily = "'Orbitron', sans-serif";
+        inventory.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
         inventory.style.color = CONFIG.COLORS.UI_TEXT;
         inventory.style.display = 'none';
         inventory.style.zIndex = '1200';
         inventory.style.backdropFilter = 'blur(2px)';
         inventory.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-                <div style="font-size: 24px; color:#ff8f33; letter-spacing:1px;">INVENTORY</div>
+                    <div style="font-size: 38px; color:#e8d6ae; letter-spacing:1px;">INVENTORY</div>
                 <div style="font-size: 13px; opacity:0.85;">[I] Close</div>
             </div>
             <div style="display:grid; grid-template-columns: 1.8fr 1fr; gap:16px;">
@@ -97,7 +97,7 @@ export class UI {
                 <div>
                     <div style="font-size:13px; color:#ffc58d; margin-bottom:8px;">Vitals</div>
                     <div id="needs-panel" style="display:grid; gap:8px;"></div>
-                    <button id="eat-meat-btn" style="margin-top:12px; width:100%; background:#3d2a1a; color:#ffdbbf; border:1px solid #ad6b35; padding:8px; cursor:pointer;">Eat Meat (E)</button>
+                    <button id="eat-meat-btn" style="margin-top:12px; width:100%; background:url('ui/PNG/Button01.png') center/cover; color:#ffdbbf; border:1px solid #ad6b35; padding:8px; cursor:pointer;">Eat Meat (E)</button>
                 </div>
             </div>
         `;
@@ -220,10 +220,10 @@ export class UI {
         const maxSlots = 24;
         for (let i = 0; i < maxSlots; i++) {
             const slot = document.createElement('div');
-            slot.style.border = '1px solid rgba(210,210,210,0.4)';
+            slot.style.border = '1px solid rgba(130,106,70,0.7)';
             slot.style.height = '62px';
             slot.style.borderRadius = '6px';
-            slot.style.background = 'rgba(13,13,13,0.45)';
+            slot.style.background = "url('ui/PNG/Cell01.png') center/cover";
             slot.style.display = 'flex';
             slot.style.alignItems = 'center';
             slot.style.justifyContent = 'center';
@@ -302,7 +302,7 @@ export class UI {
         msg.style.transform = 'translate(-50%, -50%)';
         msg.style.color = '#f1c40f';
         msg.style.fontSize = '32px';
-        msg.style.fontFamily = "'Orbitron', sans-serif";
+        msg.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
         msg.style.textShadow = '4px 4px #000';
         msg.style.pointerEvents = 'none';
         msg.textContent = text;

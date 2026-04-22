@@ -194,7 +194,7 @@ class Game {
         title.style.padding = '4px 10px';
         title.style.background = 'rgba(15, 10, 3, 0.6)';
         title.style.color = '#f8e8c5';
-        title.style.fontFamily = "'Orbitron', sans-serif";
+        title.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
         title.style.fontSize = '13px';
         title.style.borderRadius = '6px';
 

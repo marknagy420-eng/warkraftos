@@ -359,7 +359,7 @@ export class ModularCharacter {
             this.controller.keys.KeyS ||
             this.controller.keys.KeyD
         );
-        const running = (this.inputHandler.keys.has('ShiftLeft') || this.inputHandler.keys.has('ShiftRight')) && this.controller.keys.KeyW;
+        const running = (this.inputHandler.keys.has('ShiftLeft') || this.inputHandler.keys.has('ShiftRight')) && hasMove;
 
         if (this.isDead) {
             this.animationController.Play('Death');

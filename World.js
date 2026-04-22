@@ -26,10 +26,15 @@ export class World {
         this.deerNpcs = [];
         this.interactables = [];
         this.ruinsGltf = null;
+        this.cityDistrictGltf = null;
+        this.cityDistrict = null;
         this.wallColliders = [];
+        this.structureColliders = [];
         this.pathTreeMarkers = [];
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
+        this.districtPosition = new THREE.Vector3(-420, 0, -300);
+        this.noSpawnZones = [];
         
         // Spatial Database (Grid) for performance optimization
         this.gridSize = 20; 
@@ -150,12 +155,20 @@ export class World {
             this.createHut(new THREE.Vector3(25, 0, -25));
             this.createHut(new THREE.Vector3(-25, 0, -25));
             this.createHut(new THREE.Vector3(0, 0, 45));
+            this.refreshNoSpawnZones();
         });
 
         loader.load('assets/ancient ruins 3d model.glb', (gltf) => {
             this.ruinsGltf = gltf;
             this.createAncientRuins(this.ruinsPosition.clone());
             this.setupRuinsPathTrees();
+            this.refreshNoSpawnZones();
+        });
+
+        loader.load('assets/f50669c8-b9a7-488f-b870-beca07416d60.glb', (gltf) => {
+            this.cityDistrictGltf = gltf;
+            this.createCityDistrict(this.districtPosition.clone());
+            this.refreshNoSpawnZones();
         });
 
         // Load passive Deer NPC model
@@ -179,7 +192,7 @@ export class World {
         const textureAniso = { low: 1, medium: 2, high: 4, ultra: 8 };
         const shadowMapSize = { low: 512, medium: 768, high: 1024, ultra: 1536 };
         const scalar = qualityMap[this.settings.textureQuality] || 1;
-        this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0022 / scalar);
+        this.scene.fog = new THREE.FogExp2(0x20232c, 0.003 / scalar);
         if (this.terrain?.material?.map) {
             this.terrain.material.map.anisotropy = textureAniso[this.settings.textureQuality] || 4;
             this.terrain.material.needsUpdate = true;
@@ -201,14 +214,14 @@ export class World {
     }
 
     setupLights() {
-        const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+        const ambient = new THREE.AmbientLight(0x525466, 0.25);
         this.scene.add(ambient);
         
-        const directional = new THREE.DirectionalLight(0xffffff, 1.65);
-        directional.position.set(100, 200, 100);
+        const directional = new THREE.DirectionalLight(0xb8c2d9, 1.2);
+        directional.position.set(90, 230, 70);
         directional.castShadow = true;
-        directional.shadow.mapSize.width = 2048;
-        directional.shadow.mapSize.height = 2048;
+        directional.shadow.mapSize.width = 3072;
+        directional.shadow.mapSize.height = 3072;
         directional.shadow.camera.left = -300;
         directional.shadow.camera.right = 300;
         directional.shadow.camera.top = 300;
@@ -221,8 +234,23 @@ export class World {
         this.scene.add(directional);
         this.directionalLight = directional;
 
+        const rimLight = new THREE.DirectionalLight(0x5f6782, 0.5);
+        rimLight.position.set(-140, 110, -80);
+        rimLight.castShadow = true;
+        rimLight.shadow.mapSize.width = 2048;
+        rimLight.shadow.mapSize.height = 2048;
+        rimLight.shadow.camera.left = -260;
+        rimLight.shadow.camera.right = 260;
+        rimLight.shadow.camera.top = 260;
+        rimLight.shadow.camera.bottom = -260;
+        rimLight.shadow.camera.near = 1;
+        rimLight.shadow.camera.far = 700;
+        rimLight.shadow.bias = -0.0002;
+        this.scene.add(rimLight);
+        this.rimLight = rimLight;
+
         // Fog for atmosphere and performance (draw distance feel)
-        this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);
+        this.scene.fog = new THREE.FogExp2(0x20232c, 0.003);
     }
 
     setupGround() {
@@ -269,7 +297,7 @@ export class World {
         // Create a large sky dome
         const skyGeo = new THREE.SphereGeometry(2500, 32, 32);
         const skyMat = new THREE.MeshBasicMaterial({ 
-            color: 0x87ceeb, // Sky blue
+            color: 0x1d2230,
             side: THREE.BackSide 
         });
         this.sky = new THREE.Mesh(skyGeo, skyMat);
@@ -287,7 +315,7 @@ export class World {
                 map: cloudTexture,
                 transparent: true,
                 depthWrite: false,
-                opacity: 0.85
+                opacity: 0.45
             }));
             const s = 120 + Math.random() * 150;
             cloud.scale.set(s, s * 0.55, 1);
@@ -360,7 +388,7 @@ export class World {
         const dummy = new THREE.Object3D();
         for (let i = 0; i < count; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
-            if (pos.length() < 35) { 
+            if (pos.length() < 35 || this.isInNoSpawnZone(pos.x, pos.z, 8)) { 
                 i--;
                 continue;
             }
@@ -413,6 +441,34 @@ export class World {
             radius: 14 
         };
         this.addToGrid(hutData, 'HUT');
+    }
+
+    createCityDistrict(pos) {
+        if (!this.cityDistrictGltf) return;
+
+        const district = cloneSkeleton(this.cityDistrictGltf.scene);
+        const terrainH = this.getTerrainHeight(pos.x, pos.z);
+        const scale = 96;
+
+        district.scale.setScalar(scale);
+        district.position.set(pos.x, terrainH, pos.z);
+        district.rotation.y = -Math.PI / 2;
+        district.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(district);
+        district.position.y -= box.min.y - terrainH;
+
+        district.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.frustumCulled = false;
+        });
+
+        district.updateMatrixWorld(true);
+        this.scene.add(district);
+        this.cityDistrict = district;
+        this.addStructureMeshColliders(district);
     }
 
     createAncientRuins(pos) {
@@ -517,6 +573,34 @@ export class World {
             { minX: minX, maxX: centerX - doorwayHalf, minZ: maxZ - wallThickness, maxZ: maxZ + wallThickness },
             { minX: centerX + doorwayHalf, maxX: maxX, minZ: maxZ - wallThickness, maxZ: maxZ + wallThickness }
         );
+        this.addStructureMeshColliders(ruins);
+    }
+
+    addStructureMeshColliders(root) {
+        root.updateMatrixWorld(true);
+        root.traverse((child) => {
+            if (!child.isMesh) return;
+            const box = new THREE.Box3().setFromObject(child);
+            if (box.isEmpty()) return;
+            if ((box.max.x - box.min.x) < 1 || (box.max.z - box.min.z) < 1) return;
+            this.structureColliders.push(box);
+        });
+    }
+
+    refreshNoSpawnZones() {
+        this.noSpawnZones = [];
+        this.hutMarkers.forEach((h) => this.noSpawnZones.push({ x: h.x, z: h.z, radius: 18 }));
+        this.noSpawnZones.push({ x: this.ruinsPosition.x, z: this.ruinsPosition.z, radius: 54 });
+        this.noSpawnZones.push({ x: this.districtPosition.x, z: this.districtPosition.z, radius: 120 });
+    }
+
+    isInNoSpawnZone(x, z, extraRadius = 0) {
+        return this.noSpawnZones.some((zone) => {
+            const dx = x - zone.x;
+            const dz = z - zone.z;
+            const min = zone.radius + extraRadius;
+            return (dx * dx + dz * dz) < min * min;
+        });
     }
 
     setupGrass() {
@@ -587,6 +671,27 @@ export class World {
             const push = radius - dist;
             return new THREE.Vector3((dx / dist) * push, 0, (dz / dist) * push);
         }
+
+        for (const box of this.structureColliders) {
+            const expanded = box.clone().expandByScalar(radius);
+            if (
+                playerPosition.x < expanded.min.x || playerPosition.x > expanded.max.x ||
+                playerPosition.z < expanded.min.z || playerPosition.z > expanded.max.z
+            ) {
+                continue;
+            }
+
+            const left = Math.abs(playerPosition.x - expanded.min.x);
+            const right = Math.abs(expanded.max.x - playerPosition.x);
+            const top = Math.abs(playerPosition.z - expanded.min.z);
+            const bottom = Math.abs(expanded.max.z - playerPosition.z);
+            const minPush = Math.min(left, right, top, bottom);
+
+            if (minPush === left) return new THREE.Vector3(-(left || 0.01), 0, 0);
+            if (minPush === right) return new THREE.Vector3((right || 0.01), 0, 0);
+            if (minPush === top) return new THREE.Vector3(0, 0, -(top || 0.01));
+            return new THREE.Vector3(0, 0, (bottom || 0.01));
+        }
         return null;
     }
 
@@ -616,7 +721,7 @@ export class World {
         const campCount = this.getScaledWorldCount(CONFIG.WORLD.GOBLIN_CAMP_COUNT);
         for (let i = 0; i < campCount; i++) {
             const campPos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
-            if (campPos.length() < 40) {
+            if (campPos.length() < 40 || this.isInNoSpawnZone(campPos.x, campPos.z, 20)) {
                 i--;
                 continue;
             }
@@ -644,7 +749,7 @@ export class World {
         const deerCount = this.getScaledWorldCount(CONFIG.WORLD.DEER_COUNT);
         for (let i = 0; i < deerCount; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
-            if (pos.length() < 30) {
+            if (pos.length() < 30 || this.isInNoSpawnZone(pos.x, pos.z, 12)) {
                 i--;
                 continue;
             }
@@ -704,7 +809,7 @@ export class World {
         const count = herbCountByPreset[this.settings.graphicsPreset] || 220;
         for (let i = 0; i < count; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
-            if (pos.length() < 20) {
+            if (pos.length() < 20 || this.isInNoSpawnZone(pos.x, pos.z, 6)) {
                 i--;
                 continue;
             }
@@ -725,7 +830,7 @@ export class World {
         const treasureCount = this.getScaledWorldCount(CONFIG.WORLD.TREASURE_COUNT);
         for (let i = 0; i < treasureCount; i++) {
             const pos = getRandomPosition(CONFIG.WORLD.SIZE / 2);
-            if (pos.length() < 40) {
+            if (pos.length() < 40 || this.isInNoSpawnZone(pos.x, pos.z, 8)) {
                 i--;
                 continue;
             }
