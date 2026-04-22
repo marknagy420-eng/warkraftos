@@ -1,6 +1,6 @@
 export const CONFIG = {
     PLAYER: {
-        MOVE_SPEED: 4,
+        MOVE_SPEED: 4.8,
         JUMP_FORCE: 10.4,
         GRAVITY: 30,
         GROUND_LEVEL: 0,
@@ -11,7 +11,7 @@ export const CONFIG = {
     },
     ENEMY: {
         GOBLIN: {
-            HEALTH: 40,
+            HEALTH: 95,
             DAMAGE: 8,
             MOVE_SPEED: 4,
             DETECTION_RANGE: 15,

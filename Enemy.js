@@ -5,8 +5,10 @@ import { createHealthBar, distance2D } from './utils.js';
 
 const STATE = {
     IDLE: 'idle',
+    WALK: 'walk',
     RUN: 'run',
     ATTACK: 'attack',
+    HIT: 'hit',
     DYING: 'dying',
     DEAD: 'dead',
 };
@@ -24,7 +26,9 @@ export class Enemy {
         this.mixer = null;
         this.state = STATE.IDLE;
         this.actions = {};
+        this.actionVariants = { idle: [], attack: [] };
         this.currentAction = null;
+        this.modelFacingOffset = Math.PI / 2;
 
         // Outer group for position & manual Y-rotation facing
         this.mesh = new THREE.Group();
@@ -35,12 +39,12 @@ export class Enemy {
             this.model = cloneSkeleton(gltf.scene);
             this.mesh.add(this.model);
 
-            // Auto-scale to ~2.5 units tall
+            // Mutant is about 2x the player character height.
             this.model.updateMatrixWorld(true);
             const box = new THREE.Box3().setFromObject(this.model);
             const size = box.getSize(new THREE.Vector3());
             const height = Math.max(size.y, 0.01);
-            const s = 2.5 / height;
+            const s = 6.2 / height;
             this.model.scale.set(s, s, s);
 
             // Recompute & put feet on ground
@@ -57,55 +61,7 @@ export class Enemy {
                 }
             });
 
-            // Setup animations
-            if (gltf.animations && gltf.animations.length > 0) {
-                // Print every clip name so we know what's available
-                const names = gltf.animations.map(a => a.name);
-                console.log('GLB animation clips:', JSON.stringify(names));
-
-                this.mixer = new THREE.AnimationMixer(this.model);
-
-                // Map our states to clip names
-                const wantedClips = {
-                    [STATE.IDLE]:   ['idle'],
-                    [STATE.RUN]:    ['run', 'walk'],
-                    [STATE.ATTACK]: ['box_02', 'attack', 'punch', 'box'],
-                    [STATE.DYING]:  ['falling', 'death', 'die', 'fall'],
-                };
-
-                for (const [state, candidates] of Object.entries(wantedClips)) {
-                    for (const candidate of candidates) {
-                        const clip = gltf.animations.find(a => a.name.toLowerCase() === candidate.toLowerCase())
-                                  || gltf.animations.find(a => a.name.toLowerCase().includes(candidate.toLowerCase()));
-                        if (clip) {
-                            const action = this.mixer.clipAction(clip);
-                            if (state === STATE.ATTACK || state === STATE.DYING) {
-                                action.setLoop(THREE.LoopOnce, 1);
-                                action.clampWhenFinished = true;
-                            }
-                            this.actions[state] = action;
-                            console.log(`  ✓ "${state}" → "${clip.name}"`);
-                            break;
-                        }
-                    }
-                    if (!this.actions[state]) {
-                        console.warn(`  ✗ No clip for "${state}"`);
-                    }
-                }
-
-                // Finished event for one-shot anims
-                this.mixer.addEventListener('finished', () => {
-                    if (this.state === STATE.ATTACK) {
-                        this.crossFadeTo(STATE.IDLE);
-                    } else if (this.state === STATE.DYING) {
-                        this.state = STATE.DEAD;
-                        setTimeout(() => this.scene.remove(this.mesh), 800);
-                    }
-                });
-
-                // Start idle
-                this.crossFadeTo(STATE.IDLE);
-            }
+            this.setupAnimations(gltf);
         } else {
             // Fallback placeholder
             const bodyGeo = new THREE.CapsuleGeometry(0.5, 0.8, 4, 8);
@@ -127,6 +83,72 @@ export class Enemy {
 
     }
 
+    setupAnimations(asset) {
+        this.mixer = new THREE.AnimationMixer(this.model);
+        const hasBundle = !!asset.animations && !Array.isArray(asset.animations);
+
+        if (hasBundle) {
+            const useClip = (fbx) => fbx?.animations?.[0] || null;
+            const addLoopAction = (state, clip) => {
+                if (!clip) return;
+                const action = this.mixer.clipAction(clip);
+                action.enabled = true;
+                this.actions[state] = action;
+            };
+            const addVariant = (kind, clip) => {
+                if (!clip) return;
+                const action = this.mixer.clipAction(clip);
+                action.enabled = true;
+                this.actionVariants[kind].push(action);
+            };
+
+            addVariant('idle', useClip(asset.animations.idle?.[0]));
+            addVariant('idle', useClip(asset.animations.idle?.[1]));
+            addLoopAction(STATE.WALK, useClip(asset.animations.walk?.[0]));
+            addLoopAction(STATE.RUN, useClip(asset.animations.run?.[0]));
+            addVariant('attack', useClip(asset.animations.attack?.[0]));
+            addVariant('attack', useClip(asset.animations.attack?.[1]));
+            addVariant('attack', useClip(asset.animations.attack?.[2]));
+            addLoopAction(STATE.HIT, useClip(asset.animations.hit?.[0]));
+            addLoopAction(STATE.DYING, useClip(asset.animations.death?.[0]));
+        } else if (Array.isArray(asset.animations) && asset.animations.length > 0) {
+            const wantedClips = {
+                [STATE.IDLE]: ['idle'],
+                [STATE.RUN]: ['run', 'walk'],
+                [STATE.ATTACK]: ['box_02', 'attack', 'punch', 'box'],
+                [STATE.DYING]: ['falling', 'death', 'die', 'fall'],
+            };
+            for (const [state, candidates] of Object.entries(wantedClips)) {
+                for (const candidate of candidates) {
+                    const clip = asset.animations.find(a => a.name.toLowerCase() === candidate.toLowerCase())
+                        || asset.animations.find(a => a.name.toLowerCase().includes(candidate.toLowerCase()));
+                    if (clip) {
+                        this.actions[state] = this.mixer.clipAction(clip);
+                        break;
+                    }
+                }
+            }
+        }
+
+        [this.actionVariants.attack[0], this.actionVariants.attack[1], this.actionVariants.attack[2], this.actions[STATE.DYING], this.actions[STATE.HIT]]
+            .filter(Boolean)
+            .forEach((action) => {
+                action.setLoop(THREE.LoopOnce, 1);
+                action.clampWhenFinished = true;
+            });
+
+        this.mixer.addEventListener('finished', () => {
+            if (this.state === STATE.ATTACK || this.state === STATE.HIT) {
+                this.crossFadeTo(STATE.IDLE);
+            } else if (this.state === STATE.DYING) {
+                this.state = STATE.DEAD;
+                setTimeout(() => this.scene.remove(this.mesh), 800);
+            }
+        });
+
+        this.crossFadeTo(STATE.IDLE);
+    }
+
     applyQualitySettings(settings) {
         if (!this.model) return;
         const low = settings.enemyQuality === 'low';
@@ -146,7 +168,7 @@ export class Enemy {
     }
 
     crossFadeTo(newState) {
-        const action = this.actions[newState];
+        const action = this.pickAction(newState);
         if (!action) return;
         if (action === this.currentAction && newState !== STATE.ATTACK) return;
 
@@ -156,6 +178,17 @@ export class Enemy {
         action.reset().fadeIn(0.2).play();
         this.currentAction = action;
         this.state = newState;
+    }
+
+    pickAction(state) {
+        if (state === STATE.IDLE && this.actionVariants.idle.length) {
+            return this.actionVariants.idle[Math.floor(Math.random() * this.actionVariants.idle.length)];
+        }
+        if (state === STATE.ATTACK && this.actionVariants.attack.length) {
+            return this.actionVariants.attack[Math.floor(Math.random() * this.actionVariants.attack.length)];
+        }
+        if (state === STATE.HIT && this.actions[STATE.HIT]) return this.actions[STATE.HIT];
+        return this.actions[state];
     }
 
     setState(newState) {
@@ -169,6 +202,7 @@ export class Enemy {
         this.health -= amount;
         this.healthBar.updateHealth(this.health / this.maxHealth);
         if (this.health <= 0) this.die();
+        else if (this.pickAction(STATE.HIT)) this.crossFadeTo(STATE.HIT);
     }
 
     die() {
@@ -194,7 +228,7 @@ export class Enemy {
     facePosition(targetPos) {
         const dx = targetPos.x - this.mesh.position.x;
         const dz = targetPos.z - this.mesh.position.z;
-        this.mesh.rotation.y = Math.atan2(dx, dz);
+        this.mesh.rotation.y = Math.atan2(dx, dz) + this.modelFacingOffset;
     }
 
     update(deltaTime, player, world) {

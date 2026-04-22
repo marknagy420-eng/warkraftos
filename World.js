@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { CONFIG } from './config.js';
@@ -15,7 +16,7 @@ export class World {
         this.chests = [];
         this.huts = []; 
         this.trees = [];
-        this.goblinGltf = null;
+        this.enemyAsset = null;
         this.treeGltf = null;
         this.twistedTreeGltf = null;
         this.hutGltf = null;
@@ -38,9 +39,9 @@ export class World {
         this.pathTreeMarkers = [];
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
-        this.districtPosition = new THREE.Vector3(-40, 0, -35);
-        this.blacksmithPosition = new THREE.Vector3(92, 0, -54);
-        this.medicalPubPosition = new THREE.Vector3(114, 0, -28);
+        this.districtPosition = new THREE.Vector3(-40, -8, -35);
+        this.blacksmithPosition = new THREE.Vector3(54, 0, -26);
+        this.medicalPubPosition = new THREE.Vector3(36, 0, -36);
         this.noSpawnZones = [];
         
         // Spatial Database (Grid) for performance optimization
@@ -49,6 +50,7 @@ export class World {
 
         this.loadingManager = new THREE.LoadingManager();
         this.modelLoader = new GLTFLoader(this.loadingManager);
+        this.fbxLoader = new FBXLoader(this.loadingManager);
         this.textureLoader = new THREE.TextureLoader(this.loadingManager);
         this.exrLoader = new EXRLoader(this.loadingManager);
 
@@ -127,19 +129,7 @@ export class World {
             this.roastedRibGltf = gltf;
         });
 
-        // Load Goblin Model
-        loader.load(
-            'assets/goblin.glb',
-            (gltf) => {
-                this.goblinGltf = gltf;
-                this.setupEnemies();
-            },
-            null,
-            (error) => {
-                console.error('Failed to load goblin.glb:', error);
-                this.setupEnemies();
-            }
-        );
+        this.loadEnemyAsset();
 
         // Load Cottage Model
         loader.load('assets/fantasycottage3dmodel_clone1.glb', (gltf) => {
@@ -217,6 +207,81 @@ export class World {
             undefined,
             (error) => {
                 console.warn('Failed to load deer+3d+model_Clone1.glb (passive NPC disabled):', error);
+            }
+        );
+    }
+
+    async loadEnemyAsset() {
+        const fbxFiles = {
+            model: ['assets/tripo_convert_64ae8d8e-8f84-496f-b6a9-f07b3a3316ca.fbx'],
+            walk: ['assets/Mutant Walking.fbx'],
+            run: ['assets/Mutant Run.fbx'],
+            attackA: ['assets/Zombie Kicking.fbx'],
+            attackB: ['assets/Zombie Punching.fbx'],
+            attackC: ['assets/Zombie Attack.fbx'],
+            hit: ['assets/Zombie Reaction Hit.fbx'],
+            death: ['assets/Zombie Death.fbx'],
+            idleA: ['assets/Zombie Scratch Idle.fbx'],
+            idleB: ['assets/Zombie Idle.fbx']
+        };
+
+        const loadFirstFbx = async (candidates = []) => {
+            for (const file of candidates) {
+                try {
+                    return await this.fbxLoader.loadAsync(file);
+                } catch (_) {
+                    // ignore and continue with fallback candidates
+                }
+            }
+            return null;
+        };
+
+        try {
+            const [model, walk, run, attackA, attackB, attackC, hit, death, idleA, idleB] = await Promise.all([
+                loadFirstFbx(fbxFiles.model),
+                loadFirstFbx(fbxFiles.walk),
+                loadFirstFbx(fbxFiles.run),
+                loadFirstFbx(fbxFiles.attackA),
+                loadFirstFbx(fbxFiles.attackB),
+                loadFirstFbx(fbxFiles.attackC),
+                loadFirstFbx(fbxFiles.hit),
+                loadFirstFbx(fbxFiles.death),
+                loadFirstFbx(fbxFiles.idleA),
+                loadFirstFbx(fbxFiles.idleB)
+            ]);
+
+            if (model) {
+                this.enemyAsset = {
+                    scene: model,
+                    animations: {
+                        idle: [idleA, idleB].filter(Boolean),
+                        walk: [walk].filter(Boolean),
+                        run: [run].filter(Boolean),
+                        attack: [attackA, attackB, attackC].filter(Boolean),
+                        hit: [hit].filter(Boolean),
+                        death: [death].filter(Boolean)
+                    }
+                };
+            }
+        } catch (error) {
+            console.warn('Mutant FBX bundle loading failed, using goblin fallback.', error);
+        }
+
+        if (this.enemyAsset) {
+            this.setupEnemies();
+            return;
+        }
+
+        this.modelLoader.load(
+            'assets/goblin.glb',
+            (gltf) => {
+                this.enemyAsset = gltf;
+                this.setupEnemies();
+            },
+            undefined,
+            (error) => {
+                console.error('Failed to load fallback goblin model:', error);
+                this.setupEnemies();
             }
         );
     }
@@ -661,7 +726,7 @@ export class World {
         const scale = 250;
 
         district.scale.setScalar(scale);
-        district.position.set(pos.x, terrainH, pos.z);
+        district.position.set(pos.x, terrainH + pos.y, pos.z);
         district.rotation.y = -Math.PI / 2;
         district.updateMatrixWorld(true);
 
@@ -721,7 +786,7 @@ export class World {
         this.blacksmithShop = this.createServiceBuilding(
             this.blacksmithGltf,
             pos,
-            11.2,
+            33.6,
             -Math.PI / 3,
             { itemId: 'blacksmith_shop', icon: '⚒️', radius: 7 }
         );
@@ -1008,7 +1073,7 @@ export class World {
                 );
                 const pos = campPos.clone().add(offset);
                 pos.y = this.getTerrainHeight(pos.x, pos.z);
-                const enemy = new Enemy(this.scene, 'GOBLIN', pos, this.goblinGltf);
+                const enemy = new Enemy(this.scene, 'GOBLIN', pos, this.enemyAsset);
                 enemy.applyQualitySettings?.(this.settings);
                 enemy.applyDifficultySettings?.(this.settings);
                 this.enemies.push(enemy);
@@ -1096,7 +1161,7 @@ export class World {
             }
             const flower = cloneSkeleton(this.flowerGltf.scene);
             const terrainH = this.getTerrainHeight(pos.x, pos.z);
-            flower.scale.setScalar(0.45 + Math.random() * 0.2);
+            flower.scale.setScalar(0.95 + Math.random() * 0.25);
             flower.position.set(pos.x, terrainH, pos.z);
             flower.rotation.y = Math.random() * Math.PI * 2;
             this.scene.add(flower);
