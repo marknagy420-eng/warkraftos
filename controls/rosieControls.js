@@ -150,18 +150,15 @@ class PlayerController {
 
     // --- Update Player Rotation ---
     // Both animations should follow movement direction (character rotates toward movement)
-    if (this.cameraMode === 'third-person') {
-      const horizontalVelocity = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
-      if (horizontalVelocity.lengthSq() > 0.1) {
-        const targetRotation = Math.atan2(horizontalVelocity.x, horizontalVelocity.z) + this.modelFacingOffset;
+    if (this.cameraMode === 'third-person' && moveDirection.lengthSq() > 0.0001) {
+        const targetRotation = Math.atan2(moveDirection.x, moveDirection.z) + this.modelFacingOffset;
         
         let diff = targetRotation - this.player.rotation.y;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
         
         // Smoothly rotate character to face movement direction
-        this.player.rotation.y += diff * 15 * dt;
-      }
+        this.player.rotation.y += diff * 13 * dt;
     }
   }
 
