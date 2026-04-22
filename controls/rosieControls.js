@@ -22,6 +22,7 @@ class PlayerController {
     this.keys = {};
     this.cameraMode = 'third-person'; // Default camera mode
     this.modelFacingOffset = options.modelFacingOffset ?? Math.PI / 2;
+    this.groundSnapTolerance = options.groundSnapTolerance ?? 0.35;
 
     // Setup input handlers
     this.setupInput();
@@ -89,21 +90,19 @@ class PlayerController {
    */
   update(deltaTime, cameraRotation) {
     const dt = Math.max(deltaTime || 0, 1 / 240);
-    // Apply gravity
-    // Check if the player's base (center y - half height approx) is above ground
-    // Note: Player model base is roughly at world y = player.position.y
-    if (this.player.position.y > this.groundLevel) {
-      this.velocity.y -= this.gravity * dt;
-      this.isOnGround = false;
-    } else {
-      // Clamp player to ground level and reset vertical velocity
-      this.velocity.y = Math.max(0, this.velocity.y); // Stop downward velocity, allow upward (jump)
+    const distanceToGround = this.player.position.y - this.groundLevel;
+    const closeToGround = distanceToGround <= this.groundSnapTolerance;
+
+    if (closeToGround && this.velocity.y <= 0) {
       this.player.position.y = this.groundLevel;
+      this.velocity.y = 0;
       this.isOnGround = true;
-      this.canJump = true; // Can jump again once grounded
+      this.canJump = true;
+    } else {
+      this.isOnGround = false;
+      this.velocity.y -= this.gravity * dt;
     }
 
-    // Handle jumping
     if (this.keys['Space'] && this.isOnGround && this.canJump) {
       this.velocity.y = this.jumpForce;
       this.isOnGround = false;
@@ -146,6 +145,13 @@ class PlayerController {
     this.player.position.x += this.velocity.x * dt;
     this.player.position.y += this.velocity.y * dt;
     this.player.position.z += this.velocity.z * dt;
+
+    if (this.player.position.y <= this.groundLevel) {
+      this.player.position.y = this.groundLevel;
+      this.velocity.y = 0;
+      this.isOnGround = true;
+      this.canJump = true;
+    }
 
 
     // --- Update Player Rotation ---
