@@ -1,7 +1,7 @@
 export const CONFIG = {
     PLAYER: {
         MOVE_SPEED: 4,
-        JUMP_FORCE: 8,
+        JUMP_FORCE: 10.4,
         GRAVITY: 30,
         GROUND_LEVEL: 0,
         MAX_HEALTH: 100,
