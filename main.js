@@ -58,6 +58,7 @@ class Game {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = this.settings.graphicsPreset !== 'low';
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.localClippingEnabled = true;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = this.settings.hdr ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
         renderer.toneMappingExposure = this.settings.brightness / 100;

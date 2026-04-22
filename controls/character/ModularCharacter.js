@@ -61,8 +61,8 @@ export class ModularCharacter {
             height: 2.6,
             rotationSpeed: 0.0032,
             pitchSpeed: 0.0024,
-            autoRotationSpeed: 8.5,
-            fixedBehind: true,
+            autoRotationSpeed: 5.0,
+            fixedBehind: false,
             pitch: 0.2
         });
         this.cameraController.enabled = false;
