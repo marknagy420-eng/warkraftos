@@ -16,6 +16,9 @@ export class DeerNPC {
         this.target = null;
         this.modelFacingOffset = Math.PI / 2;
         this.turnSpeed = 1.25 + Math.random() * 0.45;
+        this.health = 30;
+        this.isDead = false;
+        this.fleeTimer = 0;
         this._tmpToTarget = new THREE.Vector3();
         this._tmpForward = new THREE.Vector3();
 
@@ -66,6 +69,8 @@ export class DeerNPC {
     }
 
     update(deltaTime) {
+        if (this.isDead) return;
+
         if (this.pauseTimer > 0) {
             this.pauseTimer -= deltaTime;
             this.setMovingAnimation(false);
@@ -108,5 +113,43 @@ export class DeerNPC {
 
         this.setMovingAnimation(true);
         if (this.mixer) this.mixer.update(deltaTime);
+
+        if (this.fleeTimer > 0) this.fleeTimer -= deltaTime;
+    }
+
+    scareFrom(point) {
+        if (this.isDead) return;
+        const away = new THREE.Vector3().subVectors(this.mesh.position, point);
+        away.y = 0;
+        if (away.lengthSq() < 0.0001) away.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+        away.normalize();
+        const fleeDistance = 12 + Math.random() * 10;
+        this.target = this.mesh.position.clone().addScaledVector(away, fleeDistance);
+        this.target.y = this.world.getTerrainHeight(this.target.x, this.target.z);
+        this.pauseTimer = 0;
+        this.fleeTimer = 2.2;
+    }
+
+    takeDamage(amount, attackerPosition) {
+        if (this.isDead) return false;
+        this.health -= amount;
+        this.scareFrom(attackerPosition);
+        if (this.health <= 0) {
+            this.die();
+            return true;
+        }
+        return false;
+    }
+
+    die() {
+        if (this.isDead) return;
+        this.isDead = true;
+        this.scene.remove(this.mesh);
+        this.mesh.traverse((child) => {
+            if (child.isMesh) {
+                child.geometry?.dispose?.();
+            }
+        });
+        this.world?.spawnMeatDrops?.(this.mesh.position);
     }
 }
