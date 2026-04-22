@@ -42,7 +42,7 @@ class Game {
         this.isStarted = false;
         this.mapVisible = false;
         this.mapStaticMarkers = [];
-        this.dayLengthSeconds = 180;
+        this.dayLengthSeconds = 1200;
         this.gameTimeHours = 8.0;
 
         this.setupMapOverlay();
@@ -263,6 +263,9 @@ class Game {
 
         this.addMapMarker(points.ruins.x, points.ruins.z, { background: '#7f8c8d', width: '14px', height: '14px', borderRadius: '50%' });
         points.huts.forEach((h) => this.addMapMarker(h.x, h.z, { background: '#d35400', width: '10px', height: '10px' }));
+        if (points.district) this.addMapMarker(points.district.x, points.district.z, { background: '#f1c40f', width: '12px', height: '12px', borderRadius: '3px' });
+        if (points.blacksmith) this.addMapMarker(points.blacksmith.x, points.blacksmith.z, { background: '#95a5a6', width: '11px', height: '11px', borderRadius: '50%' });
+        if (points.medicalPub) this.addMapMarker(points.medicalPub.x, points.medicalPub.z, { background: '#9b59b6', width: '11px', height: '11px', borderRadius: '50%' });
         points.pathTrees.forEach((t, i) => {
             if (i % 2 === 0) this.addMapMarker(t.x, t.z, { background: '#1e8449', width: '6px', height: '6px', borderRadius: '50%' });
         });

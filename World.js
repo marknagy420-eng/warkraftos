@@ -28,13 +28,19 @@ export class World {
         this.interactables = [];
         this.ruinsGltf = null;
         this.cityDistrictGltf = null;
+        this.blacksmithGltf = null;
+        this.pubGltf = null;
         this.cityDistrict = null;
+        this.blacksmithShop = null;
+        this.medicalPub = null;
         this.wallColliders = [];
         this.structureColliders = [];
         this.pathTreeMarkers = [];
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
         this.districtPosition = new THREE.Vector3(-40, 0, -35);
+        this.blacksmithPosition = new THREE.Vector3(92, 0, -54);
+        this.medicalPubPosition = new THREE.Vector3(114, 0, -28);
         this.noSpawnZones = [];
         
         // Spatial Database (Grid) for performance optimization
@@ -152,11 +158,12 @@ export class World {
             }
 
             // Place huts once loaded (doubled scale in createHut)
-            this.createHut(new THREE.Vector3(25, 0, 25));
-            this.createHut(new THREE.Vector3(-25, 0, 25));
-            this.createHut(new THREE.Vector3(25, 0, -25));
-            this.createHut(new THREE.Vector3(-25, 0, -25));
-            this.createHut(new THREE.Vector3(0, 0, 45));
+            this.createHut(new THREE.Vector3(160, 0, 140));
+            this.createHut(new THREE.Vector3(130, 0, 160));
+            this.createHut(new THREE.Vector3(180, 0, 112));
+            this.createHut(new THREE.Vector3(118, 0, 118));
+            this.createHut(new THREE.Vector3(150, 0, 96));
+            if (!this.medicalPub) this.createMedicalPub(this.medicalPubPosition.clone());
             this.refreshNoSpawnZones();
         });
 
@@ -174,6 +181,29 @@ export class World {
         this.loadFirstAvailableGltf(districtAssetCandidates, (gltf) => {
             this.cityDistrictGltf = gltf;
             this.createCityDistrict(this.districtPosition.clone());
+            this.refreshNoSpawnZones();
+        });
+
+        loader.load('assets/medieval blacksmith forge 3d model.glb', (gltf) => {
+            this.blacksmithGltf = gltf;
+            this.createBlacksmithShop(this.blacksmithPosition.clone());
+            this.refreshNoSpawnZones();
+        }, undefined, (error) => {
+            console.warn('Failed to load medieval blacksmith forge 3d model.glb:', error);
+        });
+
+        const pubCandidates = [
+            'assets/medieval pub 3d model.glb',
+            'assets/medieval+pub+3d+model.glb',
+            'assets/pub 3d model.glb'
+        ];
+        this.loadFirstAvailableGltf(pubCandidates, (gltf) => {
+            this.pubGltf = gltf;
+            this.createMedicalPub(this.medicalPubPosition.clone());
+            this.refreshNoSpawnZones();
+        }, () => {
+            console.warn('Medieval pub model is missing in assets; using cottage fallback as medical building.');
+            this.createMedicalPub(this.medicalPubPosition.clone());
             this.refreshNoSpawnZones();
         });
 
@@ -263,11 +293,14 @@ export class World {
         const groundTexture = this.loadFirstAvailableTexture([
             'assets/Ground068_2K-JPG.jpg',
             'assets/Ground068_2K-JPG_Color.jpg',
+            'assets/Ground068_2K-JPG_Color.png',
+            'assets/Ground068_2K-JPG_color.jpg',
             'assets/Ground068_2K-JPG_BaseColor.jpg',
             'assets/fold.jpg'
         ]);
         groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
         groundTexture.repeat.set(80, 80);
+        groundTexture.colorSpace = THREE.SRGBColorSpace;
         groundTexture.minFilter = THREE.LinearMipmapLinearFilter;
         groundTexture.magFilter = THREE.LinearFilter;
 
@@ -381,9 +414,12 @@ export class World {
         }
     }
 
-    loadFirstAvailableGltf(candidates, onLoad) {
+    loadFirstAvailableGltf(candidates, onLoad, onError) {
         const tryLoad = (index = 0) => {
-            if (index >= candidates.length) return;
+            if (index >= candidates.length) {
+                onError?.();
+                return;
+            }
             this.modelLoader.load(
                 candidates[index],
                 onLoad,
@@ -622,7 +658,7 @@ export class World {
 
         const district = cloneSkeleton(this.cityDistrictGltf.scene);
         const terrainH = this.getTerrainHeight(pos.x, pos.z);
-        const scale = 192;
+        const scale = 250;
 
         district.scale.setScalar(scale);
         district.position.set(pos.x, terrainH, pos.z);
@@ -637,18 +673,70 @@ export class World {
             child.castShadow = true;
             child.receiveShadow = true;
             child.frustumCulled = false;
-            const clippingGround = terrainH + 0.01;
-            child.material = child.material.clone();
-            child.material.clippingPlanes = [
-                new THREE.Plane(new THREE.Vector3(0, 1, 0), -clippingGround)
-            ];
-            child.material.clipShadows = true;
         });
 
         district.updateMatrixWorld(true);
         this.scene.add(district);
         this.cityDistrict = district;
-        this.addStructureMeshColliders(district);
+    }
+
+    createServiceBuilding(sourceGltf, pos, scale, yaw = 0, metadata = null) {
+        if (!sourceGltf && !this.hutGltf) return null;
+        const source = sourceGltf || this.hutGltf;
+        const building = cloneSkeleton(source.scene);
+        const terrainH = this.getTerrainHeight(pos.x, pos.z);
+
+        building.scale.setScalar(scale);
+        building.position.set(pos.x, terrainH, pos.z);
+        building.rotation.y = yaw;
+        building.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(building);
+        building.position.y -= box.min.y - terrainH;
+
+        building.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                child.frustumCulled = false;
+            }
+        });
+
+        this.scene.add(building);
+        this.addStructureMeshColliders(building);
+
+        if (metadata?.itemId) {
+            this.addInteractable({
+                mesh: building,
+                itemId: metadata.itemId,
+                amount: metadata.amount || 1,
+                radius: metadata.radius || 6,
+                icon: metadata.icon || ''
+            });
+        }
+        return building;
+    }
+
+    createBlacksmithShop(pos) {
+        if (this.blacksmithShop) this.scene.remove(this.blacksmithShop);
+        this.blacksmithShop = this.createServiceBuilding(
+            this.blacksmithGltf,
+            pos,
+            11.2,
+            -Math.PI / 3,
+            { itemId: 'blacksmith_shop', icon: '⚒️', radius: 7 }
+        );
+    }
+
+    createMedicalPub(pos) {
+        if (this.medicalPub) this.scene.remove(this.medicalPub);
+        const building = this.createServiceBuilding(
+            this.pubGltf,
+            pos,
+            11.2,
+            Math.PI / 4,
+            { itemId: 'medical_pub', icon: '🧪', radius: 7 }
+        );
+        this.medicalPub = building;
     }
 
     createAncientRuins(pos) {
@@ -731,7 +819,10 @@ export class World {
         return {
             ruins: this.ruinsPosition.clone(),
             huts: this.hutMarkers.map((h) => h.clone()),
-            pathTrees: this.pathTreeMarkers.map((t) => t.clone())
+            pathTrees: this.pathTreeMarkers.map((t) => t.clone()),
+            district: this.districtPosition.clone(),
+            blacksmith: this.blacksmithPosition.clone(),
+            medicalPub: this.medicalPubPosition.clone()
         };
     }
     addRuinsWallColliders(ruins) {
@@ -771,7 +862,9 @@ export class World {
         this.noSpawnZones = [];
         this.hutMarkers.forEach((h) => this.noSpawnZones.push({ x: h.x, z: h.z, radius: 18 }));
         this.noSpawnZones.push({ x: this.ruinsPosition.x, z: this.ruinsPosition.z, radius: 54 });
-        this.noSpawnZones.push({ x: this.districtPosition.x, z: this.districtPosition.z, radius: 120 });
+        this.noSpawnZones.push({ x: this.districtPosition.x, z: this.districtPosition.z, radius: 156 });
+        this.noSpawnZones.push({ x: this.blacksmithPosition.x, z: this.blacksmithPosition.z, radius: 26 });
+        this.noSpawnZones.push({ x: this.medicalPubPosition.x, z: this.medicalPubPosition.z, radius: 26 });
     }
 
     isInNoSpawnZone(x, z, extraRadius = 0) {

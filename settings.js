@@ -2,10 +2,10 @@ export const GRAPHICS_PRESETS = ['low', 'medium', 'high', 'ultra'];
 
 export const DEFAULT_SETTINGS = {
     language: 'hu',
-    graphicsPreset: 'high',
-    textureQuality: 'high',
-    characterQuality: 'high',
-    enemyQuality: 'high',
+    graphicsPreset: 'low',
+    textureQuality: 'low',
+    characterQuality: 'low',
+    enemyQuality: 'low',
     brightness: 100,
     hdr: true,
     dlss: false,
