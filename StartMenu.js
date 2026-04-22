@@ -1,28 +1,11 @@
 import { LANGUAGES, GRAPHICS_PRESETS, DEFAULT_SETTINGS, t } from './settings.js';
 
-const CHARACTER_OPTIONS = [
-    {
-        id: 'fbx-warrior',
-        name: 'FBX Warrior',
-        role: 'Közelharci tank',
-        desc: 'Erős kardforgató. Jó védekezés, stabil életerő és frontvonalas harc.'
-    },
-    {
-        id: 'legacy',
-        name: 'Legacy Ranger',
-        role: 'Gyors felderítő',
-        desc: 'Gyorsabb mozgásérzet, egyszerűbb modell, alacsonyabb gépigény.'
-    }
-];
-
 export class StartMenu {
     constructor({ settings, gpuInfo, onApplySettings, onStart }) {
         this.settings = { ...DEFAULT_SETTINGS, ...settings };
         this.gpuInfo = gpuInfo;
         this.onApplySettings = onApplySettings;
         this.onStart = onStart;
-        this.selectedCharacter = 'fbx-warrior';
-
         this.build();
         this.renderLanguage();
     }
@@ -78,43 +61,14 @@ export class StartMenu {
         this.info.style.opacity = '0.88';
         this.info.textContent = this.gpuInfo?.text || 'GPU info unavailable';
 
-        const charsTitle = document.createElement('h3');
-        charsTitle.style.margin = '6px 0';
-        charsTitle.textContent = t(this.settings.language, 'characterSelect');
-
-        this.charactersGrid = document.createElement('div');
-        this.charactersGrid.style.display = 'grid';
-        this.charactersGrid.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
-        this.charactersGrid.style.gap = '10px';
-
-        CHARACTER_OPTIONS.forEach((char) => {
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.style.background = 'rgba(24,34,62,0.85)';
-            card.style.border = '1px solid #6173b0';
-            card.style.borderRadius = '10px';
-            card.style.color = '#fff';
-            card.style.padding = '10px';
-            card.style.textAlign = 'left';
-            card.style.cursor = 'pointer';
-            card.innerHTML = `<div style="font-size:18px; margin-bottom:4px;">⚔️</div><b>${char.name}</b><div style="font-size:12px; opacity:.9; margin-top:4px;">${char.role}</div><div style="font-size:11px; opacity:.75; margin-top:4px;">${char.desc}</div>`;
-            card.addEventListener('click', () => {
-                this.selectedCharacter = char.id;
-                this.paintCharacterCards();
-            });
-            char.card = card;
-            this.charactersGrid.appendChild(card);
-        });
-
         this.startBtn = this.makeButton('', () => {
-            this.onStart({ characterId: this.selectedCharacter });
+            this.onStart();
             this.destroy();
         });
         this.startBtn.style.fontSize = '16px';
         this.startBtn.style.padding = '12px 16px';
 
-        this.left.append(this.title, this.info, charsTitle, this.charactersGrid, this.startBtn);
-        this.paintCharacterCards();
+        this.left.append(this.title, this.info, this.startBtn);
     }
 
     buildRight() {
@@ -295,13 +249,6 @@ export class StartMenu {
         btn.style.cursor = 'pointer';
         btn.addEventListener('click', onClick);
         return btn;
-    }
-
-    paintCharacterCards() {
-        CHARACTER_OPTIONS.forEach((char) => {
-            char.card.style.border = this.selectedCharacter === char.id ? '2px solid #9cc0ff' : '1px solid #6173b0';
-            char.card.style.transform = this.selectedCharacter === char.id ? 'scale(1.01)' : 'scale(1)';
-        });
     }
 
     renderLanguage() {

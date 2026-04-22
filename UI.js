@@ -47,11 +47,16 @@ export class UI {
         questLog.style.border = '2px solid #6f6247';
         questLog.style.pointerEvents = 'none';
         questLog.innerHTML = `
-            <div style="font-size: 24px; font-weight: bold; border-bottom: 1px solid #777; margin-bottom: 10px; color:#f3e4c3;">QUEST LOG</div>
-            <div id="quest-title" style="font-size: 14px; margin-bottom: 6px;"></div>
-            <div id="quest-state" style="font-size: 12px; opacity: 0.85; margin-bottom: 8px;"></div>
-            <ul id="quest-objectives" style="margin: 0; padding-left: 18px; font-size: 12px;"></ul>
-            <div id="quest-text" style="margin-top: 8px;">Clear the Forest: <span id="kill-count">0</span>/5 Goblins</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div style="font-size: 24px; font-weight: bold; color:#f3e4c3;">QUEST LOG</div>
+                <div style="font-size:12px; opacity:.85;">[X]</div>
+            </div>
+            <div id="quest-log-content" style="display:none; border-top:1px solid #777; margin-top:10px; padding-top:10px;">
+                <div id="quest-title" style="font-size: 14px; margin-bottom: 6px;"></div>
+                <div id="quest-state" style="font-size: 12px; opacity: 0.85; margin-bottom: 8px;"></div>
+                <ul id="quest-objectives" style="margin: 0; padding-left: 18px; font-size: 12px;"></ul>
+                <div id="quest-text" style="margin-top: 8px;">Clear the Forest: <span id="kill-count">0</span>/5 Goblins</div>
+            </div>
         `;
         document.body.appendChild(questLog);
 
@@ -72,21 +77,6 @@ export class UI {
         gameClock.style.textAlign = 'center';
         gameClock.textContent = '08:00';
         document.body.appendChild(gameClock);
-
-        const prompt = document.createElement('div');
-        prompt.id = 'game-prompt';
-        prompt.style.position = 'fixed';
-        prompt.style.bottom = '50px';
-        prompt.style.width = '100%';
-        prompt.style.textAlign = 'center';
-        prompt.style.color = CONFIG.COLORS.UI_TEXT;
-        prompt.style.fontFamily = "'DarkMystic', 'Times New Roman', serif";
-        prompt.style.fontSize = '30px';
-        prompt.style.textShadow = '2px 2px #000';
-        prompt.style.pointerEvents = 'none';
-        prompt.innerHTML = 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map';
-        this.prompt = prompt;
-        document.body.appendChild(prompt);
 
         const inventory = document.createElement('div');
         inventory.id = 'inventory-panel';
@@ -127,6 +117,7 @@ export class UI {
         this.questTitle = questLog.querySelector('#quest-title');
         this.questState = questLog.querySelector('#quest-state');
         this.questObjectives = questLog.querySelector('#quest-objectives');
+        this.questLogContent = questLog.querySelector('#quest-log-content');
         this.goldDisplay = hud.querySelector('#gold-display');
         this.gameClock = gameClock;
         this.weaponSlot = inventory.querySelector('#weapon-slot');
@@ -195,11 +186,13 @@ export class UI {
 
         window.addEventListener('language-changed', (e) => {
             this.language = e.detail.language;
-            const textMap = {
-                hu: 'WASD mozgás | Shift futás | C guggolás | Space ugrás | I inventory | 1 kard | Bal klikk támadás | M térkép',
-                en: 'WASD Move | Shift Run | C Crouch | Space Jump | I Inventory | 1 Sword | Left Click Attack | M Map'
-            };
-            this.prompt.textContent = textMap[this.language] || textMap.en;
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (e.code === 'KeyX' && this.questLogContent) {
+                this.questLogContent.style.display = this.questLogContent.style.display === 'none' ? 'block' : 'none';
+            }
         });
 
         window.addEventListener('game-time-changed', (e) => {

@@ -312,7 +312,8 @@ export class ModularCharacter {
         }
 
         if (world?.getTerrainHeight) {
-            this.controller.groundLevel = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+            const targetGround = world.getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+            this.controller.groundLevel = THREE.MathUtils.lerp(this.controller.groundLevel, targetGround, 0.35);
         }
 
         this.syncInputToController();

@@ -92,12 +92,13 @@ class PlayerController {
     // Apply gravity
     // Check if the player's base (center y - half height approx) is above ground
     // Note: Player model base is roughly at world y = player.position.y
-    if (this.player.position.y > this.groundLevel) {
+    const groundDelta = this.player.position.y - this.groundLevel;
+    if (groundDelta > 0.03) {
       this.velocity.y -= this.gravity * dt;
       this.isOnGround = false;
     } else {
       // Clamp player to ground level and reset vertical velocity
-      this.velocity.y = Math.max(0, this.velocity.y); // Stop downward velocity, allow upward (jump)
+      this.velocity.y = Math.max(0, this.velocity.y * 0.15); // damp tiny vertical oscillations
       this.player.position.y = this.groundLevel;
       this.isOnGround = true;
       this.canJump = true; // Can jump again once grounded

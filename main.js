@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { Player } from './controls/Player.js';
 import { CharacterManager } from './controls/character/CharacterManager.js';
-import { CharacterSelectionMenu } from './controls/character/CharacterSelectionMenu.js';
 import { LegacyCharacterAdapter } from './controls/character/LegacyCharacterAdapter.js';
 import { ModularCharacter } from './controls/character/ModularCharacter.js';
 import { World } from './World.js';
@@ -37,7 +36,6 @@ class Game {
         this.ui = null;
         this.player = null;
         this.characterManager = null;
-        this.characterMenu = null;
         this.world = null;
         this.isStarted = false;
         this.mapVisible = false;
@@ -79,8 +77,8 @@ class Game {
                 this.applyLanguage(this.settings.language);
                 this.applyDifficulty(this.settings);
             },
-            onStart: ({ characterId }) => {
-                this.startGame({ characterId });
+            onStart: () => {
+                this.startGame();
             }
         });
         this.applyLanguage(this.settings.language);
@@ -142,7 +140,7 @@ class Game {
         this.world?.applyDifficultySettings(settings);
     }
 
-    startGame({ characterId = 'fbx-warrior' } = {}) {
+    startGame() {
         if (this.isStarted) return;
         this.ui = new UI(this.settings.language);
         this.player = new Player(this.scene, this.camera, this.renderer.domElement);
@@ -151,7 +149,7 @@ class Game {
         this.characterManager = new CharacterManager();
         this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: true });
         this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: false });
-        this.characterManager.switchTo(characterId);
+        this.characterManager.switchTo('fbx-warrior');
 
         const spawn = this.world.getPlayerSpawnPoint?.();
         if (spawn) {
@@ -159,10 +157,6 @@ class Game {
             const modular = this.characterManager.characters.get('fbx-warrior');
             modular?.setSpawnPoint?.(spawn);
         }
-
-
-        this.characterMenu = new CharacterSelectionMenu(this.characterManager, this.settings.language);
-        this.characterMenu.render();
         this.rebuildMapStaticMarkers();
 
         this.applyGraphicsSettings(this.settings);
