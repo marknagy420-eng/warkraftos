@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { CONFIG } from './config.js';
 import { Enemy } from './Enemy.js';
@@ -43,6 +44,7 @@ export class World {
         this.loadingManager = new THREE.LoadingManager();
         this.modelLoader = new GLTFLoader(this.loadingManager);
         this.textureLoader = new THREE.TextureLoader(this.loadingManager);
+        this.exrLoader = new EXRLoader(this.loadingManager);
 
         this.setupLights();
         this.setupGround();
@@ -165,7 +167,11 @@ export class World {
             this.refreshNoSpawnZones();
         });
 
-        loader.load('assets/f50669c8-b9a7-488f-b870-beca07416d60.glb', (gltf) => {
+        const districtAssetCandidates = [
+            'assets/e54ed42d-ef68-4559-b887-d32c76877ed1.glb',
+            'assets/f50669c8-b9a7-488f-b870-beca07416d60.glb'
+        ];
+        this.loadFirstAvailableGltf(districtAssetCandidates, (gltf) => {
             this.cityDistrictGltf = gltf;
             this.createCityDistrict(this.districtPosition.clone());
             this.refreshNoSpawnZones();
@@ -294,6 +300,20 @@ export class World {
     }
 
     setupSky() {
+        const hdriCandidates = [
+            'assets/DaySkyHDRI042B_1K_HDR.exr',
+            'assets/DaySkyHDRI042B_1K.exr'
+        ];
+        this.loadFirstAvailableExr(hdriCandidates, (texture) => {
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+            this.scene.background = texture;
+            this.scene.environment = texture;
+        }, () => {
+            this.setupFallbackSkyDome();
+        });
+    }
+
+    setupFallbackSkyDome() {
         // Create a large sky dome
         const skyGeo = new THREE.SphereGeometry(2500, 32, 32);
         const skyMat = new THREE.MeshBasicMaterial({ 
@@ -323,6 +343,35 @@ export class World {
             cloud.position.set(pos.x, 200 + Math.random() * 100, pos.z);
             this.clouds.add(cloud);
         }
+    }
+
+    loadFirstAvailableGltf(candidates, onLoad) {
+        const tryLoad = (index = 0) => {
+            if (index >= candidates.length) return;
+            this.modelLoader.load(
+                candidates[index],
+                onLoad,
+                undefined,
+                () => tryLoad(index + 1)
+            );
+        };
+        tryLoad();
+    }
+
+    loadFirstAvailableExr(candidates, onLoad, onError) {
+        const tryLoad = (index = 0) => {
+            if (index >= candidates.length) {
+                onError?.();
+                return;
+            }
+            this.exrLoader.load(
+                candidates[index],
+                onLoad,
+                undefined,
+                () => tryLoad(index + 1)
+            );
+        };
+        tryLoad();
     }
 
 
@@ -448,7 +497,7 @@ export class World {
 
         const district = cloneSkeleton(this.cityDistrictGltf.scene);
         const terrainH = this.getTerrainHeight(pos.x, pos.z);
-        const scale = 96;
+        const scale = 192;
 
         district.scale.setScalar(scale);
         district.position.set(pos.x, terrainH, pos.z);
@@ -463,6 +512,12 @@ export class World {
             child.castShadow = true;
             child.receiveShadow = true;
             child.frustumCulled = false;
+            const clippingGround = terrainH + 0.01;
+            child.material = child.material.clone();
+            child.material.clippingPlanes = [
+                new THREE.Plane(new THREE.Vector3(0, 1, 0), -clippingGround)
+            ];
+            child.material.clipShadows = true;
         });
 
         district.updateMatrixWorld(true);
