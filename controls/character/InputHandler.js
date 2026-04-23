@@ -5,16 +5,45 @@ export class InputHandler {
             jumpPressed: false
         };
 
+        this.keyAliasByKey = {
+            w: 'KeyW',
+            a: 'KeyA',
+            s: 'KeyS',
+            d: 'KeyD',
+            ' ': 'Space',
+            shift: 'ShiftLeft',
+            c: 'KeyC'
+        };
+
+        this.getCanonicalCode = (event) => {
+            if (event.code && event.code !== 'Unidentified') {
+                return event.code;
+            }
+
+            const normalizedKey = typeof event.key === 'string'
+                ? event.key.toLowerCase()
+                : '';
+
+            return this.keyAliasByKey[normalizedKey] || null;
+        };
+
         this.onKeyDown = (event) => {
             const target = event.target;
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
                 return;
             }
-            this.keys.add(event.code);
+
+            const canonicalCode = this.getCanonicalCode(event);
+            if (canonicalCode) {
+                this.keys.add(canonicalCode);
+            }
         };
 
         this.onKeyUp = (event) => {
-            this.keys.delete(event.code);
+            const canonicalCode = this.getCanonicalCode(event);
+            if (canonicalCode) {
+                this.keys.delete(canonicalCode);
+            }
         };
 
         this.onBlur = () => {
@@ -28,6 +57,19 @@ export class InputHandler {
     }
 
     snapshot() {
+        const state = this.getState();
+        const jumpDown = state.jumpDown;
+        const jumpPressed = jumpDown && !this.previous.jumpPressed;
+        this.previous.jumpPressed = jumpDown;
+
+        return {
+            ...state,
+            jumpPressed,
+            jumpDown
+        };
+    }
+
+    getState() {
         const hasW = this.keys.has('KeyW');
         const hasA = this.keys.has('KeyA');
         const hasS = this.keys.has('KeyS');
@@ -36,8 +78,6 @@ export class InputHandler {
         const hasShift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
         const hasCrouch = this.keys.has('KeyC');
         const jumpDown = this.keys.has('Space');
-        const jumpPressed = jumpDown && !this.previous.jumpPressed;
-        this.previous.jumpPressed = jumpDown;
 
         return {
             hasW,
@@ -47,7 +87,6 @@ export class InputHandler {
             hasMove,
             isRunCombo: hasW && hasShift,
             isCrouching: hasCrouch,
-            jumpPressed,
             jumpDown
         };
     }
