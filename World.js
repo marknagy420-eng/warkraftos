@@ -40,7 +40,7 @@ export class World {
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
         this.districtPosition = new THREE.Vector3(-40, -8, -35);
-        this.blacksmithPosition = new THREE.Vector3(54, 0, -26);
+        this.blacksmithPosition = new THREE.Vector3(46, 0, 28);
         this.medicalPubPosition = new THREE.Vector3(36, 0, -36);
         this.noSpawnZones = [];
         
@@ -53,6 +53,7 @@ export class World {
         this.fbxLoader = new FBXLoader(this.loadingManager);
         this.textureLoader = new THREE.TextureLoader(this.loadingManager);
         this.exrLoader = new EXRLoader(this.loadingManager);
+        this.refreshNoSpawnZones();
 
         this.setupLights();
         this.setupGround();
@@ -236,6 +237,14 @@ export class World {
             return null;
         };
 
+        const clipFromNode = (node, candidates = []) => {
+            if (!node?.animations?.length) return null;
+            const lowered = candidates.map((c) => c.toLowerCase());
+            return node.animations.find((clip) => lowered.some((candidate) => clip.name.toLowerCase().includes(candidate)))
+                || node.animations[0]
+                || null;
+        };
+
         try {
             const [model, walk, run, attackA, attackB, attackC, hit, death, idleA, idleB] = await Promise.all([
                 loadFirstFbx(fbxFiles.model),
@@ -251,6 +260,13 @@ export class World {
             ]);
 
             if (model) {
+                const embeddedIdle = clipFromNode(model, ['idle', 'breath', 'stand']);
+                const embeddedWalk = clipFromNode(model, ['walk']);
+                const embeddedRun = clipFromNode(model, ['run', 'jog', 'sprint']);
+                const embeddedAttack = clipFromNode(model, ['attack', 'kick', 'punch', 'slash']);
+                const embeddedHit = clipFromNode(model, ['hit', 'impact', 'react']);
+                const embeddedDeath = clipFromNode(model, ['death', 'die', 'fall']);
+
                 this.enemyAsset = {
                     scene: model,
                     animations: {
@@ -259,7 +275,8 @@ export class World {
                         run: [run].filter(Boolean),
                         attack: [attackA, attackB, attackC].filter(Boolean),
                         hit: [hit].filter(Boolean),
-                        death: [death].filter(Boolean)
+                        death: [death].filter(Boolean),
+                        embedded: { idle: embeddedIdle, walk: embeddedWalk, run: embeddedRun, attack: embeddedAttack, hit: embeddedHit, death: embeddedDeath }
                     }
                 };
             }
@@ -735,6 +752,11 @@ export class World {
 
         district.traverse((child) => {
             if (!child.isMesh) return;
+            const meshName = (child.name || '').toLowerCase();
+            if (meshName.includes('tree') || meshName.includes('bush') || meshName.includes('leaf') || meshName.includes('vegetation')) {
+                child.visible = false;
+                return;
+            }
             child.castShadow = true;
             child.receiveShadow = true;
             child.frustumCulled = false;
@@ -742,6 +764,8 @@ export class World {
 
         district.updateMatrixWorld(true);
         this.scene.add(district);
+        this.addStructureMeshColliders(district);
+        this.addToGrid({ position: new THREE.Vector3(pos.x, terrainH, pos.z), radius: 78 }, 'DISTRICT');
         this.cityDistrict = district;
     }
 
@@ -1151,6 +1175,12 @@ export class World {
 
     setupHerbFlowers() {
         if (!this.flowerGltf || !this.grassGltf) return;
+        let flowerMinY = 0;
+        this.flowerGltf.scene.traverse((child) => {
+            if (!child.isMesh) return;
+            child.geometry.computeBoundingBox();
+            flowerMinY = Math.min(flowerMinY, child.geometry.boundingBox.min.y);
+        });
         const herbCountByPreset = { low: 120, medium: 220, high: 320, ultra: 420 };
         const count = herbCountByPreset[this.settings.graphicsPreset] || 220;
         for (let i = 0; i < count; i++) {
@@ -1161,8 +1191,9 @@ export class World {
             }
             const flower = cloneSkeleton(this.flowerGltf.scene);
             const terrainH = this.getTerrainHeight(pos.x, pos.z);
-            flower.scale.setScalar(0.95 + Math.random() * 0.25);
-            flower.position.set(pos.x, terrainH, pos.z);
+            const scale = 0.95 + Math.random() * 0.25;
+            flower.scale.setScalar(scale);
+            flower.position.set(pos.x, terrainH - (flowerMinY * scale), pos.z);
             flower.rotation.y = Math.random() * Math.PI * 2;
             this.scene.add(flower);
             this.addInteractable({ mesh: flower, itemId: 'herb', amount: 1, radius: 2.2, icon: '🌼' });
@@ -1189,8 +1220,7 @@ export class World {
         const count = 3 + Math.floor(Math.random() * 2);
         for (let i = 0; i < count; i++) {
             const drop = cloneSkeleton(this.roastedRibGltf.scene);
-            const scale = 0.15 + Math.random() * 0.08;
-            drop.scale.setScalar(scale);
+            drop.scale.setScalar(2);
             const ox = (Math.random() - 0.5) * 2;
             const oz = (Math.random() - 0.5) * 2;
             const x = position.x + ox;

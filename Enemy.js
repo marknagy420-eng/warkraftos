@@ -89,6 +89,7 @@ export class Enemy {
 
         if (hasBundle) {
             const useClip = (fbx) => fbx?.animations?.[0] || null;
+            const embedded = asset.animations.embedded || {};
             const addLoopAction = (state, clip) => {
                 if (!clip) return;
                 const action = this.mixer.clipAction(clip);
@@ -102,15 +103,15 @@ export class Enemy {
                 this.actionVariants[kind].push(action);
             };
 
-            addVariant('idle', useClip(asset.animations.idle?.[0]));
-            addVariant('idle', useClip(asset.animations.idle?.[1]));
-            addLoopAction(STATE.WALK, useClip(asset.animations.walk?.[0]));
-            addLoopAction(STATE.RUN, useClip(asset.animations.run?.[0]));
-            addVariant('attack', useClip(asset.animations.attack?.[0]));
-            addVariant('attack', useClip(asset.animations.attack?.[1]));
-            addVariant('attack', useClip(asset.animations.attack?.[2]));
-            addLoopAction(STATE.HIT, useClip(asset.animations.hit?.[0]));
-            addLoopAction(STATE.DYING, useClip(asset.animations.death?.[0]));
+            addVariant('idle', useClip(asset.animations.idle?.[0]) || embedded.idle);
+            addVariant('idle', useClip(asset.animations.idle?.[1]) || embedded.idle);
+            addLoopAction(STATE.WALK, useClip(asset.animations.walk?.[0]) || embedded.walk);
+            addLoopAction(STATE.RUN, useClip(asset.animations.run?.[0]) || embedded.run || embedded.walk);
+            addVariant('attack', useClip(asset.animations.attack?.[0]) || embedded.attack);
+            addVariant('attack', useClip(asset.animations.attack?.[1]) || embedded.attack);
+            addVariant('attack', useClip(asset.animations.attack?.[2]) || embedded.attack);
+            addLoopAction(STATE.HIT, useClip(asset.animations.hit?.[0]) || embedded.hit);
+            addLoopAction(STATE.DYING, useClip(asset.animations.death?.[0]) || embedded.death);
         } else if (Array.isArray(asset.animations) && asset.animations.length > 0) {
             const wantedClips = {
                 [STATE.IDLE]: ['idle'],
