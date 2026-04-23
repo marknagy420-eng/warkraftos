@@ -29,23 +29,23 @@ const WARRIOR_ANIMATION_FILES = {
     PowerUp: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Power Up.fbx', 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx']
 };
 
-const IRA_MODEL_FILE = 'assets/ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx';
+const IRA_MODEL_FILE = 'assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx';
 const IRA_ANIMATION_FILES = {
-    Idle: ['assets/ira_assets/Breathing Idle.fbx'],
-    Walk: ['assets/ira_assets/Walking.fbx'],
-    Run: ['assets/ira_assets/Running.fbx'],
-    Jump: ['assets/ira_assets/Jumping.fbx'],
-    Crouch: ['assets/ira_assets/Crouching.fbx'],
-    CrouchToStand: ['assets/ira_assets/Crouch To Stand.fbx'],
-    AttackSlash: ['assets/ira_assets/Body Jab Cross.fbx'],
-    AttackSlash2: ['assets/ira_assets/Punching.fbx'],
-    AttackSlash3: ['assets/ira_assets/Hook.fbx'],
-    AttackHeavy: ['assets/ira_assets/Flying Knee Punch Combo.fbx'],
-    SpinKick: ['assets/ira_assets/Spin Flip Kick.fbx'],
-    Block: ['assets/ira_assets/Outward Block.fbx'],
-    Block2: ['assets/ira_assets/Inward Block.fbx'],
-    Death: ['assets/ira_assets/Standing React Death Forward.fbx'],
-    MagicReserved: ['assets/ira_assets/Standing 2H Magic Attack 01.fbx']
+    Idle: ['assets/Breathing Idle.fbx'],
+    Walk: ['assets/Walking.fbx'],
+    Run: ['assets/Running.fbx'],
+    Jump: ['assets/Jumping.fbx'],
+    Crouch: ['assets/Crouching.fbx'],
+    CrouchToStand: ['assets/Crouch To Stand.fbx'],
+    AttackSlash: ['assets/Body Jab Cross.fbx'],
+    AttackSlash2: ['assets/Punching.fbx'],
+    AttackSlash3: ['assets/Hook.fbx'],
+    AttackHeavy: ['assets/Flying Knee Punch Combo.fbx'],
+    SpinKick: ['assets/Spin Flip Kick.fbx'],
+    Block: ['assets/Outward Block.fbx'],
+    Block2: ['assets/Inward Block.fbx'],
+    Death: ['assets/Standing React Death Forward.fbx'],
+    MagicReserved: ['assets/Standing 2H Magic Attack 01.fbx']
 };
 
 export class ModularCharacter {
@@ -55,9 +55,9 @@ export class ModularCharacter {
         this.domElement = domElement;
         this.displayName = profile.displayName || 'FBX Warrior';
         this.cameraRef = camera;
-        this.modelFile = profile.modelFile || IRA_MODEL_FILE;
+        this.modelFile = profile.modelFile || WARRIOR_MODEL_FILE;
         this.modelBaseRotationY = profile.modelBaseRotationY ?? MODEL_BASE_ROTATION_Y;
-        this.animationFiles = profile.animationFiles || IRA_ANIMATION_FILES;
+        this.animationFiles = profile.animationFiles || WARRIOR_ANIMATION_FILES;
         this.targetHeight = profile.targetHeight || 3.1;
         this.enableWeapon = profile.enableWeapon ?? true;
         this.combatRequiresWeapon = profile.combatRequiresWeapon ?? true;
@@ -193,9 +193,8 @@ export class ModularCharacter {
         for (const file of candidates) {
             const resolvedCandidates = [
                 file,
-                file.replace('assets/ira_assets/', 'assets/ira_assets/'),
-                file.replace('assets/ira_assets/', 'assets/ira_assets/'),
-                file.replace('assets/ira_assets/', 'assets/')
+                file.replace(/^assets\/ira_assets\//, 'assets/'),
+                `assets/${file.split('/').pop()}`
             ];
             try {
                 for (const candidatePath of resolvedCandidates) {
@@ -511,7 +510,6 @@ export const IRA_CHARACTER_PROFILE = {
     displayName: 'Ira',
     modelFile: IRA_MODEL_FILE,
     modelFileFallbacks: [
-        'assets/ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx',
         'assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx'
     ],
     modelBaseRotationY: MODEL_BASE_ROTATION_Y,
