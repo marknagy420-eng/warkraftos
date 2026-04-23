@@ -86,9 +86,10 @@ export class ModularCharacter {
         this.mesh.visible = false;
         this.scene.add(this.mesh);
 
-        this.inputHandler = new InputHandler();
+        this.inputHandler = null;
         this.animationController = null;
         this.controller = null;
+        this.combatInputBound = false;
 
         this.cameraController = new ThirdPersonCameraController(camera, this.mesh, domElement, {
             distance: 5.2,
@@ -110,7 +111,7 @@ export class ModularCharacter {
     }
 
     setupCombatInput() {
-        window.addEventListener('keydown', (e) => {
+        this.onCombatKeyDown = (e) => {
             if (e.code === 'Digit1' && !e.repeat) {
                 this.toggleWeapon();
             }
@@ -128,9 +129,9 @@ export class ModularCharacter {
                 this.health = Math.min(this.maxHealth, this.health + Math.floor(this.maxHealth * 0.5));
                 window.dispatchEvent(new CustomEvent('player-health-changed', { detail: { health: this.health, maxHealth: this.maxHealth } }));
             }
-        });
+        };
 
-        window.addEventListener('mousedown', (e) => {
+        this.onCombatMouseDown = (e) => {
             if (this.combatRequiresWeapon && !this.weaponEquipped) return;
             if (e.button === 0) {
                 this.lightAttack();
@@ -143,15 +144,49 @@ export class ModularCharacter {
                 this.blockIndex = (this.blockIndex + 1) % this.blockCycle.length;
                 if (blockAnim) this.animationController?.Play(blockAnim);
             }
-        });
+        };
 
-        window.addEventListener('mouseup', (e) => {
+        this.onCombatMouseUp = (e) => {
             if (e.button === 2) {
                 this.isBlocking = false;
             }
-        });
+        };
 
-        this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+        this.onCombatContextMenu = (e) => e.preventDefault();
+    }
+
+    bindCombatInput() {
+        if (this.combatInputBound) return;
+        window.addEventListener('keydown', this.onCombatKeyDown);
+        window.addEventListener('mousedown', this.onCombatMouseDown);
+        window.addEventListener('mouseup', this.onCombatMouseUp);
+        this.domElement.addEventListener('contextmenu', this.onCombatContextMenu);
+        this.combatInputBound = true;
+    }
+
+    unbindCombatInput() {
+        if (!this.combatInputBound) return;
+        window.removeEventListener('keydown', this.onCombatKeyDown);
+        window.removeEventListener('mousedown', this.onCombatMouseDown);
+        window.removeEventListener('mouseup', this.onCombatMouseUp);
+        this.domElement.removeEventListener('contextmenu', this.onCombatContextMenu);
+        this.combatInputBound = false;
+    }
+
+    onActivate() {
+        if (!this.inputHandler) {
+            this.inputHandler = new InputHandler();
+        }
+        this.bindCombatInput();
+    }
+
+    onDeactivate() {
+        this.unbindCombatInput();
+        if (this.inputHandler) {
+            this.inputHandler.destroy();
+            this.inputHandler = null;
+        }
+        this.isBlocking = false;
     }
 
     async loadAnimationClip(loader, candidates) {
@@ -404,7 +439,7 @@ export class ModularCharacter {
     }
 
     syncInputToController() {
-        if (!this.controller) return;
+        if (!this.controller || !this.inputHandler) return;
         const keys = this.controller.keys;
         const input = this.inputHandler.getState();
         keys.KeyW = input.hasW;
@@ -415,7 +450,7 @@ export class ModularCharacter {
     }
 
     updateAnimations(deltaTime) {
-        if (!this.animationController || !this.controller) return;
+        if (!this.animationController || !this.controller || !this.inputHandler) return;
 
         if (this.lockedAnimation && this.lockedAnimationTimer > 0) {
             this.lockedAnimationTimer -= deltaTime;
