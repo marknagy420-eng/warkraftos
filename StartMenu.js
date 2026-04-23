@@ -46,10 +46,7 @@ export class StartMenu {
 
         this.info = document.createElement('div');
         this.info.style.fontSize = '13px';
-        this.info.style.opacity = '0.92';
-        this.info.style.marginBottom = '8px';
-        this.info.style.textShadow = '0 1px 4px rgba(0,0,0,0.7)';
-        this.info.textContent = this.gpuInfo?.text || 'GPU info unavailable';
+        this.info.style.display = 'none';
 
         this.startBtn = this.makeMenuButton('', () => {
             this.onStart?.(this.selectedCharacterId);
@@ -69,6 +66,14 @@ export class StartMenu {
 
         this.characterRow = this.row('', this.characterSelect);
         this.characterRow.style.marginTop = '8px';
+
+        [this.title, this.startBtn, this.settingsBtn, this.characterRow].forEach((node) => {
+            node.style.background = 'rgba(0, 0, 0, 0.28)';
+            node.style.padding = node === this.title ? '8px 12px' : '10px 12px';
+            node.style.border = 'none';
+            node.style.backdropFilter = 'blur(2px)';
+        });
+        this.title.style.display = 'inline-block';
 
         this.left.append(this.title, this.info, this.startBtn, this.settingsBtn, this.characterRow);
 
@@ -315,9 +320,8 @@ export class StartMenu {
         btn.style.padding = '12px 14px';
         btn.style.fontSize = '18px';
         btn.style.textAlign = 'left';
-        btn.style.background = 'rgba(10, 15, 30, 0.74)';
+        btn.style.background = 'rgba(0, 0, 0, 0.28)';
         btn.style.border = 'none';
-        btn.style.borderBottom = '2px solid rgba(75, 151, 255, 0.85)';
         btn.style.borderRadius = '0';
         return btn;
     }

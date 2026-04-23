@@ -217,8 +217,9 @@ class Game {
         const spawn = this.world.getPlayerSpawnPoint?.();
         if (spawn) {
             this.player.mesh.position.copy(spawn);
-            const modular = this.characterManager.characters.get('fbx-warrior');
-            modular?.setSpawnPoint?.(spawn);
+            this.characterManager.characters.forEach((character) => {
+                character?.setSpawnPoint?.(spawn);
+            });
         }
         this.rebuildMapStaticMarkers();
 

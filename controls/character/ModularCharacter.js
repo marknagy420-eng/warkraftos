@@ -8,7 +8,7 @@ import { AnimationController } from './AnimationController.js';
 import { CONFIG } from '../../config.js';
 
 const WARRIOR_MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
-const MODEL_BASE_ROTATION_Y = Math.PI / 2;
+const MODEL_BASE_ROTATION_Y = 0;
 
 const WARRIOR_ANIMATION_FILES = {
     Idle: ['assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx'],
@@ -209,7 +209,7 @@ export class ModularCharacter {
                 jumpForce: CONFIG.PLAYER.JUMP_FORCE,
                 gravity: CONFIG.PLAYER.GRAVITY,
                 groundLevel: 0,
-                modelFacingOffset: -Math.PI / 2
+                modelFacingOffset: 0
             });
 
             this.animationController.Play('Idle');
