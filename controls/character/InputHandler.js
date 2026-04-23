@@ -4,6 +4,29 @@ export class InputHandler {
         this.previous = {
             jumpPressed: false
         };
+        this.eventTargets = [window, document];
+
+        this.keyAliasByKey = {
+            w: 'KeyW',
+            a: 'KeyA',
+            s: 'KeyS',
+            d: 'KeyD',
+            ' ': 'Space',
+            shift: 'ShiftLeft',
+            c: 'KeyC'
+        };
+
+        this.getCanonicalCode = (event) => {
+            if (event.code && event.code !== 'Unidentified') {
+                return event.code;
+            }
+
+            const normalizedKey = typeof event.key === 'string'
+                ? event.key.toLowerCase()
+                : '';
+
+            return this.keyAliasByKey[normalizedKey] || null;
+        };
 
         this.keyAliasByKey = {
             w: 'KeyW',
@@ -51,9 +74,12 @@ export class InputHandler {
             this.previous.jumpPressed = false;
         };
 
-        window.addEventListener('keydown', this.onKeyDown);
-        window.addEventListener('keyup', this.onKeyUp);
+        for (const target of this.eventTargets) {
+            target.addEventListener('keydown', this.onKeyDown, true);
+            target.addEventListener('keyup', this.onKeyUp, true);
+        }
         window.addEventListener('blur', this.onBlur);
+        document.addEventListener('visibilitychange', this.onBlur);
     }
 
     snapshot() {
@@ -92,8 +118,11 @@ export class InputHandler {
     }
 
     destroy() {
-        window.removeEventListener('keydown', this.onKeyDown);
-        window.removeEventListener('keyup', this.onKeyUp);
+        for (const target of this.eventTargets) {
+            target.removeEventListener('keydown', this.onKeyDown, true);
+            target.removeEventListener('keyup', this.onKeyUp, true);
+        }
         window.removeEventListener('blur', this.onBlur);
+        document.removeEventListener('visibilitychange', this.onBlur);
     }
 }
