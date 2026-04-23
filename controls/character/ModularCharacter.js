@@ -413,6 +413,15 @@ export class ModularCharacter {
     }
 
     update(deltaTime, world, isActive) {
+        if (typeof window !== 'undefined' && window.__DEBUG_INPUT__) {
+            console.debug('[ModularCharacter][InputDebug]', {
+                displayName: this.displayName,
+                characterId: this.displayName,
+                isActive,
+                inputState: this.inputHandler ? { ...this.inputHandler.getState() } : null
+            });
+        }
+
         if (!isActive) return;
         if (!this.controller) {
             this.cameraController.update(deltaTime, this.mesh.rotation.y);
