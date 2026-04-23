@@ -10,6 +10,7 @@ export class CharacterManager {
         if (!this.activeCharacterId) {
             this.activeCharacterId = id;
             character.setVisible(true);
+            character.onActivate?.();
         }
     }
 
@@ -17,11 +18,17 @@ export class CharacterManager {
         if (!this.characters.has(id) || this.activeCharacterId === id) return;
 
         const previous = this.getActiveCharacter();
-        if (previous) previous.setVisible(false);
+        if (previous) {
+            previous.onDeactivate?.();
+            previous.setVisible(false);
+        }
 
         this.activeCharacterId = id;
         const next = this.getActiveCharacter();
-        if (next) next.setVisible(true);
+        if (next) {
+            next.setVisible(true);
+            next.onActivate?.();
+        }
     }
 
     getActiveCharacter() {
