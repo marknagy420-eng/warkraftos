@@ -65,6 +65,7 @@ export class ModularCharacter {
         this.blockCycle = profile.blockCycle || ['Block'];
         this.spinAnimation = profile.spinAnimation || 'AttackHeavy';
         this.magicAnimation = profile.magicAnimation || null;
+        this.modelFileFallbacks = profile.modelFileFallbacks || [];
 
         this.health = CONFIG.PLAYER.MAX_HEALTH;
         this.maxHealth = CONFIG.PLAYER.MAX_HEALTH;
@@ -155,12 +156,20 @@ export class ModularCharacter {
 
     async loadAnimationClip(loader, candidates) {
         for (const file of candidates) {
+            const resolvedCandidates = [
+                file,
+                file.replace('assets/ira_assets/', 'assets//ira_assets/'),
+                file.replace('assets//ira_assets/', 'assets/ira_assets/'),
+                file.replace('assets/ira_assets/', 'assets/')
+            ];
             try {
-                const anim = await loader.loadAsync(file);
-                if (anim.animations?.[0]) {
-                    const clip = anim.animations[0].clone();
-                    clip.tracks = clip.tracks.filter((track) => !/\.position$/i.test(track.name));
-                    return clip;
+                for (const candidatePath of resolvedCandidates) {
+                    const anim = await loader.loadAsync(candidatePath);
+                    if (anim.animations?.[0]) {
+                        const clip = anim.animations[0].clone();
+                        clip.tracks = clip.tracks.filter((track) => !/\.position$/i.test(track.name));
+                        return clip;
+                    }
                 }
             } catch (_) {
                 // try next fallback
@@ -169,11 +178,23 @@ export class ModularCharacter {
         return null;
     }
 
+    async loadModelWithFallback(loader) {
+        const modelCandidates = [this.modelFile, ...this.modelFileFallbacks];
+        for (const file of modelCandidates) {
+            try {
+                return await loader.loadAsync(file);
+            } catch (_) {
+                // try next fallback model
+            }
+        }
+        throw new Error(`[ModularCharacter] Unable to load model file: ${modelCandidates.join(', ')}`);
+    }
+
     async load() {
         const loader = new FBXLoader();
         const gltfLoader = new GLTFLoader();
         try {
-            const model = await loader.loadAsync(this.modelFile);
+            const model = await this.loadModelWithFallback(loader);
             const clipsByName = {};
 
             await Promise.all(Object.entries(this.animationFiles).map(async ([name, files]) => {
@@ -448,6 +469,10 @@ export class ModularCharacter {
 export const IRA_CHARACTER_PROFILE = {
     displayName: 'Ira',
     modelFile: IRA_MODEL_FILE,
+    modelFileFallbacks: [
+        'assets//ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx',
+        'assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx'
+    ],
     modelBaseRotationY: MODEL_BASE_ROTATION_Y,
     animationFiles: IRA_ANIMATION_FILES,
     targetHeight: 3.1,
