@@ -68,7 +68,9 @@ export class ModularCharacter {
 
         this.health = CONFIG.PLAYER.MAX_HEALTH;
         this.maxHealth = CONFIG.PLAYER.MAX_HEALTH;
-        this.weaponEquipped = !this.combatRequiresWeapon;
+        // Only start in "equipped" state when weapon usage is enabled for this character.
+        // Ira has no weapon set, so forcing equipped animations would break her animation flow.
+        this.weaponEquipped = this.enableWeapon && !this.combatRequiresWeapon;
         this.isBlocking = false;
         this.isDead = false;
         this.lockedAnimation = null;
