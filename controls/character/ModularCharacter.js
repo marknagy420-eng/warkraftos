@@ -406,11 +406,12 @@ export class ModularCharacter {
     syncInputToController() {
         if (!this.controller) return;
         const keys = this.controller.keys;
-        keys.KeyW = this.inputHandler.keys.has('KeyW');
-        keys.KeyA = this.inputHandler.keys.has('KeyA');
-        keys.KeyS = this.inputHandler.keys.has('KeyS');
-        keys.KeyD = this.inputHandler.keys.has('KeyD');
-        keys.Space = this.inputHandler.keys.has('Space');
+        const input = this.inputHandler.getState();
+        keys.KeyW = input.hasW;
+        keys.KeyA = input.hasA;
+        keys.KeyS = input.hasS;
+        keys.KeyD = input.hasD;
+        keys.Space = input.jumpDown;
     }
 
     updateAnimations(deltaTime) {
@@ -427,13 +428,9 @@ export class ModularCharacter {
             this.lockedAnimation = null;
         }
 
-        const hasMove = Boolean(
-            this.controller.keys.KeyW ||
-            this.controller.keys.KeyA ||
-            this.controller.keys.KeyS ||
-            this.controller.keys.KeyD
-        );
-        const running = (this.inputHandler.keys.has('ShiftLeft') || this.inputHandler.keys.has('ShiftRight')) && hasMove;
+        const input = this.inputHandler.getState();
+        const hasMove = input.hasMove;
+        const running = input.isRunCombo && hasMove;
 
         if (this.isDead) {
             this.animationController.Play('Death');
@@ -450,7 +447,7 @@ export class ModularCharacter {
             this.animationController.Play('Run');
         } else if (hasMove) {
             this.animationController.Play('Walk');
-        } else if (this.inputHandler.keys.has('KeyC')) {
+        } else if (input.isCrouching) {
             this.wasCrouching = true;
             this.animationController.Play('Crouch');
         } else if (this.wasCrouching && this.animationController.actions.has('CrouchToStand')) {

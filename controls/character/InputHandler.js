@@ -4,17 +4,47 @@ export class InputHandler {
         this.previous = {
             jumpPressed: false
         };
+        this.eventTargets = [window, document];
+
+        this.keyAliasByKey = {
+            w: 'KeyW',
+            a: 'KeyA',
+            s: 'KeyS',
+            d: 'KeyD',
+            ' ': 'Space',
+            shift: 'ShiftLeft',
+            c: 'KeyC'
+        };
+
+        this.getCanonicalCode = (event) => {
+            if (event.code && event.code !== 'Unidentified') {
+                return event.code;
+            }
+
+            const normalizedKey = typeof event.key === 'string'
+                ? event.key.toLowerCase()
+                : '';
+
+            return this.keyAliasByKey[normalizedKey] || null;
+        };
 
         this.onKeyDown = (event) => {
             const target = event.target;
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
                 return;
             }
-            this.keys.add(event.code);
+
+            const canonicalCode = this.getCanonicalCode(event);
+            if (canonicalCode) {
+                this.keys.add(canonicalCode);
+            }
         };
 
         this.onKeyUp = (event) => {
-            this.keys.delete(event.code);
+            const canonicalCode = this.getCanonicalCode(event);
+            if (canonicalCode) {
+                this.keys.delete(canonicalCode);
+            }
         };
 
         this.onBlur = () => {
@@ -22,12 +52,28 @@ export class InputHandler {
             this.previous.jumpPressed = false;
         };
 
-        window.addEventListener('keydown', this.onKeyDown);
-        window.addEventListener('keyup', this.onKeyUp);
+        for (const target of this.eventTargets) {
+            target.addEventListener('keydown', this.onKeyDown, true);
+            target.addEventListener('keyup', this.onKeyUp, true);
+        }
         window.addEventListener('blur', this.onBlur);
+        document.addEventListener('visibilitychange', this.onBlur);
     }
 
     snapshot() {
+        const state = this.getState();
+        const jumpDown = state.jumpDown;
+        const jumpPressed = jumpDown && !this.previous.jumpPressed;
+        this.previous.jumpPressed = jumpDown;
+
+        return {
+            ...state,
+            jumpPressed,
+            jumpDown
+        };
+    }
+
+    getState() {
         const hasW = this.keys.has('KeyW');
         const hasA = this.keys.has('KeyA');
         const hasS = this.keys.has('KeyS');
@@ -36,8 +82,6 @@ export class InputHandler {
         const hasShift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
         const hasCrouch = this.keys.has('KeyC');
         const jumpDown = this.keys.has('Space');
-        const jumpPressed = jumpDown && !this.previous.jumpPressed;
-        this.previous.jumpPressed = jumpDown;
 
         return {
             hasW,
@@ -47,14 +91,16 @@ export class InputHandler {
             hasMove,
             isRunCombo: hasW && hasShift,
             isCrouching: hasCrouch,
-            jumpPressed,
             jumpDown
         };
     }
 
     destroy() {
-        window.removeEventListener('keydown', this.onKeyDown);
-        window.removeEventListener('keyup', this.onKeyUp);
+        for (const target of this.eventTargets) {
+            target.removeEventListener('keydown', this.onKeyDown, true);
+            target.removeEventListener('keyup', this.onKeyUp, true);
+        }
         window.removeEventListener('blur', this.onBlur);
+        document.removeEventListener('visibilitychange', this.onBlur);
     }
 }
