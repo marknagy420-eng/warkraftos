@@ -7,10 +7,10 @@ import { InputHandler } from './InputHandler.js';
 import { AnimationController } from './AnimationController.js';
 import { CONFIG } from '../../config.js';
 
-const MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
+const WARRIOR_MODEL_FILE = 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx';
 const MODEL_BASE_ROTATION_Y = Math.PI / 2;
 
-const ANIMATION_FILES = {
+const WARRIOR_ANIMATION_FILES = {
     Idle: ['assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx'],
     Walk: ['assets/medieval+warrior+3d+model_Clone1@Walking.fbx'],
     Run: ['assets/medieval+warrior+3d+model_Clone1@Fast Run.fbx'],
@@ -29,24 +29,57 @@ const ANIMATION_FILES = {
     PowerUp: ['assets/medieval+warrior+3d+model_Clone1@Sword And Shield Power Up.fbx', 'assets/medieval+warrior+3d+model_Clone1@Standing Idle.fbx']
 };
 
+const IRA_MODEL_FILE = 'assets/ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx';
+const IRA_ANIMATION_FILES = {
+    Idle: ['assets/ira_assets/Breathing Idle.fbx'],
+    Walk: ['assets/ira_assets/Walking.fbx'],
+    Run: ['assets/ira_assets/Running.fbx'],
+    Jump: ['assets/ira_assets/Jumping.fbx'],
+    Crouch: ['assets/ira_assets/Crouching.fbx'],
+    CrouchToStand: ['assets/ira_assets/Crouch To Stand.fbx'],
+    AttackSlash: ['assets/ira_assets/Body Jab Cross.fbx'],
+    AttackSlash2: ['assets/ira_assets/Punching.fbx'],
+    AttackSlash3: ['assets/ira_assets/Hook.fbx'],
+    AttackHeavy: ['assets/ira_assets/Flying Knee Punch Combo.fbx'],
+    SpinKick: ['assets/ira_assets/Spin Flip Kick.fbx'],
+    Block: ['assets/ira_assets/Outward Block.fbx'],
+    Block2: ['assets/ira_assets/Inward Block.fbx'],
+    Death: ['assets/ira_assets/Standing React Death Forward.fbx'],
+    MagicReserved: ['assets/ira_assets/Standing 2H Magic Attack 01.fbx']
+};
+
 export class ModularCharacter {
-    constructor(scene, camera, domElement) {
+    constructor(scene, camera, domElement, profile = {}) {
         this.scene = scene;
         this.camera = camera;
         this.domElement = domElement;
-        this.displayName = 'FBX Warrior';
+        this.displayName = profile.displayName || 'FBX Warrior';
         this.cameraRef = camera;
+        this.modelFile = profile.modelFile || WARRIOR_MODEL_FILE;
+        this.modelBaseRotationY = profile.modelBaseRotationY ?? MODEL_BASE_ROTATION_Y;
+        this.animationFiles = profile.animationFiles || WARRIOR_ANIMATION_FILES;
+        this.targetHeight = profile.targetHeight || 3.1;
+        this.enableWeapon = profile.enableWeapon ?? true;
+        this.combatRequiresWeapon = profile.combatRequiresWeapon ?? true;
+        this.lightAttackCycle = profile.lightAttackCycle || ['AttackSlash'];
+        this.blockCycle = profile.blockCycle || ['Block'];
+        this.spinAnimation = profile.spinAnimation || 'AttackHeavy';
+        this.magicAnimation = profile.magicAnimation || null;
 
         this.health = CONFIG.PLAYER.MAX_HEALTH;
         this.maxHealth = CONFIG.PLAYER.MAX_HEALTH;
-        this.weaponEquipped = false;
+        this.weaponEquipped = !this.combatRequiresWeapon;
         this.isBlocking = false;
         this.isDead = false;
         this.lockedAnimation = null;
         this.lockedAnimationTimer = 0;
         this.lastAttackTime = 0;
+        this.lastBlockTime = 0;
+        this.lightAttackIndex = 0;
+        this.blockIndex = 0;
         this.spawnPoint = new THREE.Vector3(0, 0, 0);
         this.damageTakenMultiplier = 1;
+        this.wasCrouching = false;
 
         this.mesh = new THREE.Group();
         this.mesh.visible = false;
@@ -80,8 +113,14 @@ export class ModularCharacter {
             if (e.code === 'Digit1' && !e.repeat) {
                 this.toggleWeapon();
             }
-            if (e.code === 'KeyF' && !e.repeat && this.weaponEquipped) {
-                this.attack('AttackHeavy', 0.55);
+            if (e.code === 'KeyF' && !e.repeat && (!this.combatRequiresWeapon || this.weaponEquipped)) {
+                this.attack(this.spinAnimation, 0.58, 1.2);
+            }
+            if (e.code === 'KeyH' && !e.repeat && (!this.combatRequiresWeapon || this.weaponEquipped)) {
+                this.attack('AttackHeavy', 0.62, 1.9);
+            }
+            if (e.code === 'Digit2' && !e.repeat && (!this.combatRequiresWeapon || this.weaponEquipped) && this.magicAnimation) {
+                this.playLockedAnimation(this.magicAnimation, 0.9);
             }
             if (e.code === 'KeyE' && !e.repeat && this.weaponEquipped && this.health <= this.maxHealth * 0.4) {
                 this.playLockedAnimation('PowerUp', 1.2);
@@ -91,13 +130,17 @@ export class ModularCharacter {
         });
 
         window.addEventListener('mousedown', (e) => {
-            if (!this.weaponEquipped) return;
+            if (this.combatRequiresWeapon && !this.weaponEquipped) return;
             if (e.button === 0) {
-                this.attack('AttackSlash', 0.4);
+                this.lightAttack();
             }
             if (e.button === 2) {
                 e.preventDefault();
                 this.isBlocking = true;
+                this.lastBlockTime = Date.now();
+                const blockAnim = this.blockCycle[this.blockIndex % this.blockCycle.length];
+                this.blockIndex = (this.blockIndex + 1) % this.blockCycle.length;
+                if (blockAnim) this.animationController?.Play(blockAnim);
             }
         });
 
@@ -130,10 +173,10 @@ export class ModularCharacter {
         const loader = new FBXLoader();
         const gltfLoader = new GLTFLoader();
         try {
-            const model = await loader.loadAsync(MODEL_FILE);
+            const model = await loader.loadAsync(this.modelFile);
             const clipsByName = {};
 
-            await Promise.all(Object.entries(ANIMATION_FILES).map(async ([name, files]) => {
+            await Promise.all(Object.entries(this.animationFiles).map(async ([name, files]) => {
                 clipsByName[name] = await this.loadAnimationClip(loader, files);
             }));
 
@@ -153,11 +196,11 @@ export class ModularCharacter {
             model.updateMatrixWorld(true);
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
-            const scale = 3.1 / Math.max(0.001, size.y);
+            const scale = this.targetHeight / Math.max(0.001, size.y);
             const minY = box.min.y * scale;
             model.scale.setScalar(scale);
             model.position.y -= minY;
-            model.rotation.y = MODEL_BASE_ROTATION_Y;
+            model.rotation.y = this.modelBaseRotationY;
             this.mesh.add(model);
 
             this.animationController = new AnimationController(model, clipsByName);
@@ -170,7 +213,9 @@ export class ModularCharacter {
             });
 
             this.animationController.Play('Idle');
-            this.loadSword(gltfLoader, loader);
+            if (this.enableWeapon) {
+                this.loadSword(gltfLoader, loader);
+            }
             this.setSpawnPoint(this.spawnPoint);
         } catch (error) {
             console.warn('[ModularCharacter] Failed to load FBX character or animation set.', error);
@@ -243,6 +288,7 @@ export class ModularCharacter {
 
     toggleWeapon() {
         if (this.isDead) return;
+        if (!this.enableWeapon || this.combatRequiresWeapon === false) return;
         this.weaponEquipped = !this.weaponEquipped;
 
         if (this.sword) this.sword.visible = this.weaponEquipped;
@@ -255,13 +301,19 @@ export class ModularCharacter {
         window.dispatchEvent(new CustomEvent('weapon-changed', { detail: { equipped: this.weaponEquipped } }));
     }
 
-    attack(animation = 'AttackSlash', lockDuration = 0.45) {
+    lightAttack() {
+        const nextAnimation = this.lightAttackCycle[this.lightAttackIndex % this.lightAttackCycle.length] || 'AttackSlash';
+        this.lightAttackIndex = (this.lightAttackIndex + 1) % this.lightAttackCycle.length;
+        this.attack(nextAnimation, 0.45, 1);
+    }
+
+    attack(animation = 'AttackSlash', lockDuration = 0.45, damageMultiplier = 1) {
         const now = Date.now();
         if (this.isDead || now - this.lastAttackTime < CONFIG.PLAYER.ATTACK_COOLDOWN) return;
 
         this.lastAttackTime = now;
         this.playLockedAnimation(animation, lockDuration);
-        window.dispatchEvent(new CustomEvent('player-attack', { detail: { player: this } }));
+        window.dispatchEvent(new CustomEvent('player-attack', { detail: { player: this, damageMultiplier } }));
     }
 
     playLockedAnimation(name, duration) {
@@ -364,8 +416,9 @@ export class ModularCharacter {
 
         if (this.isDead) {
             this.animationController.Play('Death');
-        } else if (this.isBlocking && this.weaponEquipped) {
-            this.animationController.Play('Block');
+        } else if (this.isBlocking && (!this.combatRequiresWeapon || this.weaponEquipped)) {
+            const blockAnim = this.blockCycle[(Math.max(0, this.blockIndex - 1)) % this.blockCycle.length] || 'Block';
+            this.animationController.Play(blockAnim);
         } else if (!this.controller.isOnGround) {
             this.animationController.Play(this.weaponEquipped ? 'SwordJump' : 'Jump');
         } else if (this.weaponEquipped && hasMove) {
@@ -377,7 +430,11 @@ export class ModularCharacter {
         } else if (hasMove) {
             this.animationController.Play('Walk');
         } else if (this.inputHandler.keys.has('KeyC')) {
+            this.wasCrouching = true;
             this.animationController.Play('Crouch');
+        } else if (this.wasCrouching && this.animationController.actions.has('CrouchToStand')) {
+            this.wasCrouching = false;
+            this.playLockedAnimation('CrouchToStand', 0.55);
         } else if (this.weaponEquipped) {
             this.animationController.Play('SwordIdle');
         } else {
@@ -387,3 +444,17 @@ export class ModularCharacter {
         this.animationController.update(deltaTime);
     }
 }
+
+export const IRA_CHARACTER_PROFILE = {
+    displayName: 'Ira',
+    modelFile: IRA_MODEL_FILE,
+    modelBaseRotationY: MODEL_BASE_ROTATION_Y,
+    animationFiles: IRA_ANIMATION_FILES,
+    targetHeight: 3.1,
+    enableWeapon: false,
+    combatRequiresWeapon: false,
+    lightAttackCycle: ['AttackSlash', 'AttackSlash2', 'AttackSlash3'],
+    blockCycle: ['Block', 'Block2'],
+    spinAnimation: 'SpinKick',
+    magicAnimation: 'MagicReserved'
+};

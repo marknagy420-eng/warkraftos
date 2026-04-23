@@ -8,6 +8,7 @@ import { UI } from './UI.js';
 import { CONFIG } from './config.js';
 import { StartMenu } from './StartMenu.js';
 import { DEFAULT_SETTINGS, GameSettingsStore, t } from './settings.js';
+import { IRA_CHARACTER_PROFILE } from './controls/character/ModularCharacter.js';
 
 THREE.Cache.enabled = true;
 
@@ -42,6 +43,7 @@ class Game {
         this.mapStaticMarkers = [];
         this.dayLengthSeconds = 1200;
         this.gameTimeHours = 8.0;
+        this.selectedCharacterId = 'fbx-warrior';
 
         this.setupMapOverlay();
         this.setupEventListeners();
@@ -66,10 +68,16 @@ class Game {
     }
 
     async initStartFlow() {
+        await this.playIntroIfAvailable();
         const gpuInfo = await this.detectGPU();
         this.startMenu = new StartMenu({
             settings: this.settings,
             gpuInfo,
+            selectedCharacterId: this.selectedCharacterId,
+            characters: [
+                { id: 'fbx-warrior', label: 'FBX Warrior' },
+                { id: 'ira', label: 'Ira' }
+            ],
             onApplySettings: (nextSettings) => {
                 this.settings = { ...DEFAULT_SETTINGS, ...nextSettings };
                 this.applyGraphicsSettings(this.settings);
@@ -77,11 +85,65 @@ class Game {
                 this.applyLanguage(this.settings.language);
                 this.applyDifficulty(this.settings);
             },
-            onStart: () => {
+            onSelectCharacter: (characterId) => {
+                this.selectedCharacterId = characterId;
+            },
+            onStart: (characterId) => {
+                this.selectedCharacterId = characterId || this.selectedCharacterId;
                 this.startGame();
             }
         });
         this.applyLanguage(this.settings.language);
+    }
+
+    playIntroIfAvailable() {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            Object.assign(overlay.style, {
+                position: 'fixed',
+                inset: '0',
+                background: '#000',
+                opacity: '0',
+                transition: 'opacity 800ms ease',
+                zIndex: '1200',
+                pointerEvents: 'none'
+            });
+
+            const video = document.createElement('video');
+            video.src = 'assets/intro.mp4';
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = 'auto';
+            Object.assign(video.style, {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+            });
+
+            let finished = false;
+            const done = () => {
+                if (finished) return;
+                finished = true;
+                overlay.style.opacity = '0';
+                setTimeout(() => {
+                    overlay.remove();
+                    resolve();
+                }, 650);
+            };
+
+            video.addEventListener('ended', done, { once: true });
+            video.addEventListener('error', done, { once: true });
+            video.addEventListener('loadeddata', () => {
+                overlay.style.opacity = '1';
+            }, { once: true });
+
+            overlay.appendChild(video);
+            document.body.appendChild(overlay);
+            setTimeout(() => {
+                if (video.readyState < 2) done();
+            }, 2200);
+        });
     }
 
     async detectGPU() {
@@ -148,8 +210,9 @@ class Game {
 
         this.characterManager = new CharacterManager();
         this.characterManager.addCharacter('fbx-warrior', new ModularCharacter(this.scene, this.camera, this.renderer.domElement), { visible: true });
+        this.characterManager.addCharacter('ira', new ModularCharacter(this.scene, this.camera, this.renderer.domElement, IRA_CHARACTER_PROFILE), { visible: false });
         this.characterManager.addCharacter('legacy', new LegacyCharacterAdapter(this.player), { visible: false });
-        this.characterManager.switchTo('fbx-warrior');
+        this.characterManager.switchTo(this.selectedCharacterId);
 
         const spawn = this.world.getPlayerSpawnPoint?.();
         if (spawn) {
@@ -281,11 +344,13 @@ class Game {
             }
         });
 
-        window.addEventListener('player-attack', () => {
+        window.addEventListener('player-attack', (event) => {
             if (!this.characterManager || !this.world) return;
             const activeCharacter = this.characterManager.getActiveCharacter();
             if (!activeCharacter) return;
             const player = activeCharacter.player || activeCharacter;
+            const damageScale = event?.detail?.damageMultiplier || 1;
+            const damage = Math.round(CONFIG.PLAYER.DAMAGE * damageScale);
 
             const camForward = new THREE.Vector3(0, 0, -1);
             camForward.applyQuaternion(this.camera.quaternion);
@@ -300,7 +365,7 @@ class Game {
                     const dot = camForward.dot(toEnemy);
 
                     if (dist < CONFIG.PLAYER.ATTACK_RANGE && dot > 0.5) {
-                        enemy.takeDamage(CONFIG.PLAYER.DAMAGE);
+                        enemy.takeDamage(damage);
                         this.showHitEffect(enemy.mesh.position);
                     }
                 }
@@ -313,7 +378,7 @@ class Game {
                 toDeer.normalize();
                 const dot = camForward.dot(toDeer);
                 if (dist < CONFIG.PLAYER.ATTACK_RANGE + 0.8 && dot > 0.2) {
-                    deer.takeDamage(CONFIG.PLAYER.DAMAGE, player.mesh.position);
+                    deer.takeDamage(damage, player.mesh.position);
                     this.showHitEffect(deer.mesh.position);
                 } else if (dist < 8) {
                     deer.scareFrom(player.mesh.position);

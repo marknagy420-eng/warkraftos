@@ -1,11 +1,15 @@
 import { LANGUAGES, GRAPHICS_PRESETS, DEFAULT_SETTINGS, t } from './settings.js';
 
 export class StartMenu {
-    constructor({ settings, gpuInfo, onApplySettings, onStart }) {
+    constructor({ settings, gpuInfo, characters = [], selectedCharacterId = null, onApplySettings, onSelectCharacter, onStart }) {
         this.settings = { ...DEFAULT_SETTINGS, ...settings };
         this.gpuInfo = gpuInfo;
+        this.characters = characters;
+        this.selectedCharacterId = selectedCharacterId || characters[0]?.id || 'fbx-warrior';
         this.onApplySettings = onApplySettings;
+        this.onSelectCharacter = onSelectCharacter;
         this.onStart = onStart;
+        this.settingsOpen = false;
         this.build();
         this.renderLanguage();
     }
@@ -17,61 +21,96 @@ export class StartMenu {
             position: 'fixed',
             inset: '0',
             display: 'grid',
-            gridTemplateColumns: '1.1fr 1fr',
-            gap: '18px',
-            alignItems: 'stretch',
-            background: 'radial-gradient(circle at top, rgba(39,55,95,0.95), rgba(8,12,24,0.97))',
+            gridTemplateColumns: 'minmax(260px, 420px) 1fr',
+            alignItems: 'center',
+            background: "url('assets/menubg.png') center/cover no-repeat",
             color: '#f5f6ff',
             fontFamily: "'DarkMystic', 'Times New Roman', serif",
             zIndex: '1000',
-            padding: '22px'
+            padding: '26px'
         });
 
         this.left = document.createElement('div');
-        this.left.style.display = 'flex';
-        this.left.style.flexDirection = 'column';
-        this.left.style.gap = '14px';
-        this.left.style.background = 'rgba(10,14,30,0.7)';
-        this.left.style.border = '1px solid #44538c';
-        this.left.style.borderRadius = '12px';
-        this.left.style.padding = '16px';
+        Object.assign(this.left.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+            alignItems: 'stretch',
+            maxWidth: '340px',
+            marginLeft: '10px'
+        });
 
-        this.right = document.createElement('div');
-        this.right.style.display = 'flex';
-        this.right.style.flexDirection = 'column';
-        this.right.style.gap = '10px';
-        this.right.style.background = 'rgba(10,14,30,0.8)';
-        this.right.style.border = '1px solid #44538c';
-        this.right.style.borderRadius = '12px';
-        this.right.style.padding = '16px';
-
-        this.buildLeft();
-        this.buildRight();
-
-        this.root.append(this.left, this.right);
-        document.body.appendChild(this.root);
-    }
-
-    buildLeft() {
         this.title = document.createElement('h1');
-        this.title.style.margin = '0';
+        this.title.style.margin = '0 0 12px 0';
+        this.title.style.textShadow = '0 2px 8px rgba(0,0,0,0.7)';
 
         this.info = document.createElement('div');
         this.info.style.fontSize = '13px';
-        this.info.style.opacity = '0.88';
+        this.info.style.opacity = '0.92';
+        this.info.style.marginBottom = '8px';
+        this.info.style.textShadow = '0 1px 4px rgba(0,0,0,0.7)';
         this.info.textContent = this.gpuInfo?.text || 'GPU info unavailable';
 
-        this.startBtn = this.makeButton('', () => {
-            this.onStart();
+        this.startBtn = this.makeMenuButton('', () => {
+            this.onStart?.(this.selectedCharacterId);
             this.destroy();
         });
-        this.startBtn.style.fontSize = '16px';
-        this.startBtn.style.padding = '12px 16px';
 
-        this.left.append(this.title, this.info, this.startBtn);
+        this.settingsBtn = this.makeMenuButton('', () => {
+            this.setSettingsOpen(!this.settingsOpen);
+        });
+
+        this.characterSelect = this.makeSelect(this.characters.map((item) => ({ value: item.id, label: item.label })));
+        this.characterSelect.value = this.selectedCharacterId;
+        this.characterSelect.addEventListener('change', () => {
+            this.selectedCharacterId = this.characterSelect.value;
+            this.onSelectCharacter?.(this.selectedCharacterId);
+        });
+
+        this.characterRow = this.row('', this.characterSelect);
+        this.characterRow.style.marginTop = '8px';
+
+        this.left.append(this.title, this.info, this.startBtn, this.settingsBtn, this.characterRow);
+
+        this.settingsPanel = document.createElement('div');
+        Object.assign(this.settingsPanel.style, {
+            position: 'fixed',
+            inset: '0',
+            display: 'none',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            padding: '20px 30px 28px',
+            background: "url('assets/settings.PNG') center/cover no-repeat",
+            zIndex: '1010'
+        });
+
+        this.settingsBackdrop = document.createElement('div');
+        Object.assign(this.settingsBackdrop.style, {
+            position: 'absolute',
+            inset: '0',
+            background: 'rgba(5, 9, 20, 0.78)'
+        });
+
+        this.settingsContent = document.createElement('div');
+        Object.assign(this.settingsContent.style, {
+            position: 'relative',
+            maxWidth: '980px',
+            width: '100%',
+            margin: '0 auto',
+            border: '1px solid rgba(125, 153, 255, 0.65)',
+            borderRadius: '14px',
+            background: 'rgba(8, 14, 30, 0.82)',
+            color: '#fff',
+            padding: '18px'
+        });
+
+        this.buildSettingsContent();
+        this.settingsPanel.append(this.settingsBackdrop, this.settingsContent);
+        this.root.append(this.left);
+        document.body.append(this.root, this.settingsPanel);
     }
 
-    buildRight() {
+    buildSettingsContent() {
         this.langSelect = this.makeSelect(Object.entries(LANGUAGES).map(([code, label]) => ({ value: code, label })));
         this.langSelect.value = this.settings.language;
         this.langSelect.addEventListener('change', () => {
@@ -148,6 +187,13 @@ export class StartMenu {
             this.fireApply();
         });
 
+        const layout = document.createElement('div');
+        Object.assign(layout.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '14px'
+        });
+
         const graphics = document.createElement('div');
         graphics.innerHTML = '<h3 style="margin:0 0 8px 0">Graphics</h3>';
         graphics.append(
@@ -165,7 +211,7 @@ export class StartMenu {
         );
 
         const audio = document.createElement('div');
-        audio.innerHTML = '<h3 style="margin:4px 0 8px 0">Audio</h3>';
+        audio.innerHTML = '<h3 style="margin:0 0 8px 0">Audio</h3>';
         audio.append(
             this.row('Master', makeRange('masterVolume', 0, 100)),
             this.row('Music', makeRange('musicVolume', 0, 100)),
@@ -174,32 +220,45 @@ export class StartMenu {
         );
 
         const gameplay = document.createElement('div');
-        gameplay.innerHTML = '<h3 style="margin:4px 0 8px 0">Gameplay</h3>';
+        gameplay.innerHTML = '<h3 style="margin:0 0 8px 0">Gameplay</h3>';
         gameplay.append(
             this.row('Difficulty', makeDifficulty('difficulty', ['easy', 'normal', 'hard', 'extreme'])),
             this.row('Enemy aggression', makeDifficulty('enemyAggression', ['low', 'medium', 'high', 'ultra'])),
             this.row('Enemy damage', makeDifficulty('enemyDamage', ['low', 'medium', 'high', 'ultra'])),
-            this.row('Player survivability', makeDifficulty('playerSurvivability', ['low', 'medium', 'high', 'ultra']))
+            this.row('Player survivability', makeDifficulty('playerSurvivability', ['low', 'medium', 'high', 'ultra'])),
+            this.row('Language', this.langSelect)
         );
 
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.gap = '8px';
-        const resetBtn = this.makeButton('', () => {
+        actions.style.marginTop = '10px';
+
+        this.resetBtn = this.makeButton('', () => {
             this.settings = { ...DEFAULT_SETTINGS, language: this.settings.language };
             this.fireApply();
             this.destroy();
             new StartMenu({
                 settings: this.settings,
                 gpuInfo: this.gpuInfo,
+                characters: this.characters,
+                selectedCharacterId: this.selectedCharacterId,
                 onApplySettings: this.onApplySettings,
+                onSelectCharacter: this.onSelectCharacter,
                 onStart: this.onStart
             });
         });
-        this.resetBtn = resetBtn;
-        actions.append(resetBtn);
 
-        this.right.append(this.row('Language', this.langSelect), graphics, audio, gameplay, actions);
+        this.closeSettingsBtn = this.makeButton('Vissza', () => this.setSettingsOpen(false));
+
+        actions.append(this.resetBtn, this.closeSettingsBtn);
+        layout.append(graphics, audio, gameplay);
+        this.settingsContent.append(layout, actions);
+    }
+
+    setSettingsOpen(open) {
+        this.settingsOpen = open;
+        this.settingsPanel.style.display = open ? 'flex' : 'none';
     }
 
     fireApply() {
@@ -227,7 +286,7 @@ export class StartMenu {
         s.style.color = '#fff';
         s.style.border = '1px solid #677ab8';
         s.style.borderRadius = '6px';
-        s.style.padding = '4px';
+        s.style.padding = '6px';
         options.forEach((opt) => {
             const node = document.createElement('option');
             node.value = opt.value;
@@ -251,13 +310,28 @@ export class StartMenu {
         return btn;
     }
 
+    makeMenuButton(label, onClick) {
+        const btn = this.makeButton(label, onClick);
+        btn.style.padding = '12px 14px';
+        btn.style.fontSize = '18px';
+        btn.style.textAlign = 'left';
+        btn.style.background = 'rgba(10, 15, 30, 0.74)';
+        btn.style.border = 'none';
+        btn.style.borderBottom = '2px solid rgba(75, 151, 255, 0.85)';
+        btn.style.borderRadius = '0';
+        return btn;
+    }
+
     renderLanguage() {
         this.title.textContent = t(this.settings.language, 'title');
         this.startBtn.textContent = t(this.settings.language, 'start');
+        this.settingsBtn.textContent = t(this.settings.language, 'settings');
         this.resetBtn.textContent = t(this.settings.language, 'resetSettings');
+        this.closeSettingsBtn.textContent = this.settings.language === 'hu' ? 'Vissza a menübe' : 'Back to menu';
     }
 
     destroy() {
         this.root?.remove();
+        this.settingsPanel?.remove();
     }
 }

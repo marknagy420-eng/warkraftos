@@ -9,8 +9,9 @@ export class AnimationController {
         Object.entries(clipsByName).forEach(([name, clip]) => {
             if (!clip) return;
             const action = this.mixer.clipAction(clip);
-            action.clampWhenFinished = name === 'Jump';
-            action.loop = name === 'Jump' ? THREE.LoopOnce : THREE.LoopRepeat;
+            const oneShot = /Jump|Attack|Heavy|Slash|Block|Impact|Death|PowerUp|Spin|CrouchToStand|Magic/i.test(name);
+            action.clampWhenFinished = oneShot;
+            action.loop = oneShot ? THREE.LoopOnce : THREE.LoopRepeat;
             this.actions.set(name, action);
         });
     }
