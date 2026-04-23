@@ -55,9 +55,9 @@ export class ModularCharacter {
         this.domElement = domElement;
         this.displayName = profile.displayName || 'FBX Warrior';
         this.cameraRef = camera;
-        this.modelFile = profile.modelFile || WARRIOR_MODEL_FILE;
+        this.modelFile = profile.modelFile || IRA_MODEL_FILE;
         this.modelBaseRotationY = profile.modelBaseRotationY ?? MODEL_BASE_ROTATION_Y;
-        this.animationFiles = profile.animationFiles || WARRIOR_ANIMATION_FILES;
+        this.animationFiles = profile.animationFiles || IRA_ANIMATION_FILES;
         this.targetHeight = profile.targetHeight || 3.1;
         this.enableWeapon = profile.enableWeapon ?? true;
         this.combatRequiresWeapon = profile.combatRequiresWeapon ?? true;
@@ -158,8 +158,8 @@ export class ModularCharacter {
         for (const file of candidates) {
             const resolvedCandidates = [
                 file,
-                file.replace('assets/ira_assets/', 'assets//ira_assets/'),
-                file.replace('assets//ira_assets/', 'assets/ira_assets/'),
+                file.replace('assets/ira_assets/', 'assets/ira_assets/'),
+                file.replace('assets/ira_assets/', 'assets/ira_assets/'),
                 file.replace('assets/ira_assets/', 'assets/')
             ];
             try {
@@ -470,7 +470,7 @@ export const IRA_CHARACTER_PROFILE = {
     displayName: 'Ira',
     modelFile: IRA_MODEL_FILE,
     modelFileFallbacks: [
-        'assets//ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx',
+        'assets/ira_assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx',
         'assets/tripo_convert_afc7b43b-00fe-4e2c-8919-dbe392a28578.fbx'
     ],
     modelBaseRotationY: MODEL_BASE_ROTATION_Y,
