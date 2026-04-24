@@ -25,6 +25,8 @@ export class World {
         this.coinGltf = null;
         this.roastedRibGltf = null;
         this.deerGltf = null;
+        this.flowerFieldFbx = null;
+        this.flowerField = null;
         this.deerNpcs = [];
         this.interactables = [];
         this.ruinsGltf = null;
@@ -36,6 +38,7 @@ export class World {
         this.medicalPub = null;
         this.wallColliders = [];
         this.structureColliders = [];
+        this.walkableSurfaces = [];
         this.pathTreeMarkers = [];
         this.hutMarkers = [];
         this.ruinsPosition = new THREE.Vector3(-420, 0, 0);
@@ -128,6 +131,13 @@ export class World {
         });
         loader.load('assets/roasted+pork+rib+3d+model.glb', (gltf) => {
             this.roastedRibGltf = gltf;
+        });
+        this.fbxLoader.load('assets/Flower field.fbx', (fbx) => {
+            this.flowerFieldFbx = fbx;
+            const edge = (CONFIG.WORLD.SIZE * 0.5) - 95;
+            this.createFlowerField(new THREE.Vector3(edge, 0, -42), 115, Math.PI / 2);
+        }, undefined, (error) => {
+            console.warn('Failed to load Flower field.fbx:', error);
         });
 
         this.loadEnemyAsset();
@@ -627,16 +637,22 @@ export class World {
         return Math.max(0, Math.floor(baseCount * this.getWorldDensityMultiplier()));
     }
 
-    getTerrainHeight(x, z) {
+    getTerrainHeight(x, z, sampleY = Number.POSITIVE_INFINITY) {
         if (!this.terrain) return 0;
         const d = Math.sqrt(x*x + z*z);
-        if (d <= 60) return 0; // Slightly larger flat village area
+        const terrainBase = d <= 60
+            ? 0
+            : Math.max(0, (Math.sin(x * 0.015) * Math.cos(z * 0.015) * 12) + (Math.sin(x * 0.04) * 4) + (Math.cos(z * 0.04) * 4));
         
-        // Softer mountains for easier climbing
-        const h = (Math.sin(x * 0.015) * Math.cos(z * 0.015) * 12) + 
-                  (Math.sin(x * 0.04) * 4) + 
-                  (Math.cos(z * 0.04) * 4);
-        return Math.max(0, h);
+        let walkableTop = null;
+        for (const surface of this.walkableSurfaces) {
+            if (x < surface.minX || x > surface.maxX || z < surface.minZ || z > surface.maxZ) continue;
+            if (Number.isFinite(sampleY) && sampleY < (surface.topY - 1.75)) continue;
+            if (walkableTop === null || surface.topY > walkableTop) {
+                walkableTop = surface.topY;
+            }
+        }
+        return walkableTop === null ? terrainBase : Math.max(terrainBase, walkableTop);
     }
 
     setupEnvironment() {
@@ -805,6 +821,44 @@ export class World {
         return building;
     }
 
+    createFlowerField(pos, scale = 100, yaw = 0) {
+        if (!this.flowerFieldFbx) return;
+        if (this.flowerField) this.scene.remove(this.flowerField);
+
+        const flowerField = cloneSkeleton(this.flowerFieldFbx);
+        flowerField.position.set(0, 0, 0);
+        flowerField.rotation.set(0, 0, 0);
+        flowerField.scale.setScalar(1);
+        flowerField.updateMatrixWorld(true);
+
+        const sourceBox = new THREE.Box3().setFromObject(flowerField);
+        const sourceSize = sourceBox.getSize(new THREE.Vector3());
+        const maxDim = Math.max(sourceSize.x, sourceSize.y, sourceSize.z, 0.0001);
+        const normalizedScale = scale / maxDim;
+
+        const terrainH = this.getTerrainHeight(pos.x, pos.z);
+        flowerField.scale.setScalar(normalizedScale);
+        flowerField.position.set(pos.x, terrainH + pos.y, pos.z);
+        flowerField.rotation.y = yaw;
+        flowerField.updateMatrixWorld(true);
+
+        const alignedBox = new THREE.Box3().setFromObject(flowerField);
+        flowerField.position.y -= alignedBox.min.y - terrainH;
+        flowerField.updateMatrixWorld(true);
+
+        flowerField.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.frustumCulled = false;
+        });
+
+        this.scene.add(flowerField);
+        this.addStructureMeshColliders(flowerField);
+        this.addWalkableSurface(flowerField);
+        this.flowerField = flowerField;
+    }
+
     createBlacksmithShop(pos) {
         if (this.blacksmithShop) this.scene.remove(this.blacksmithShop);
         this.blacksmithShop = this.createServiceBuilding(
@@ -947,6 +1001,19 @@ export class World {
         });
     }
 
+    addWalkableSurface(root) {
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root);
+        if (box.isEmpty()) return;
+        this.walkableSurfaces.push({
+            minX: box.min.x,
+            maxX: box.max.x,
+            minZ: box.min.z,
+            maxZ: box.max.z,
+            topY: box.max.y
+        });
+    }
+
     refreshNoSpawnZones() {
         this.noSpawnZones = [];
         this.hutMarkers.forEach((h) => this.noSpawnZones.push({ x: h.x, z: h.z, radius: 18 }));
@@ -1042,6 +1109,13 @@ export class World {
             ) {
                 continue;
             }
+
+            const standingOnWalkable = this.walkableSurfaces.some((surface) => (
+                playerPosition.x >= surface.minX && playerPosition.x <= surface.maxX &&
+                playerPosition.z >= surface.minZ && playerPosition.z <= surface.maxZ &&
+                playerPosition.y >= (surface.topY - 1.75)
+            ));
+            if (standingOnWalkable) continue;
 
             const left = Math.abs(playerPosition.x - expanded.min.x);
             const right = Math.abs(expanded.max.x - playerPosition.x);
